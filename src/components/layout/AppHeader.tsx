@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
-import { useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 
 export function AppHeader() {
@@ -21,19 +20,7 @@ export function AppHeader() {
   const { theme, setTheme } = useTheme()
   const queryClient = useQueryClient()
 
-  useEffect(() => {
-    if (!user) {
-      fetch('/api/auth/me').then(r => r.json()).then(data => {
-        if (data.id) {
-          useAppStore.getState().setUser(data)
-        } else {
-          useAppStore.getState().setView('auth')
-        }
-      }).catch(() => {
-        useAppStore.getState().setView('auth')
-      })
-    }
-  }, [])
+
 
   const { data: notifData } = useQuery({
     queryKey: ['notifications'],

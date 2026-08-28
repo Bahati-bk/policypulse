@@ -23,18 +23,22 @@ interface AppState {
     role: string
   } | null
   sidebarOpen: boolean
+  isCheckingSession: boolean
   setView: (view: ViewType) => void
   setUser: (user: AppState['user']) => void
   setSidebarOpen: (open: boolean) => void
+  setCheckingSession: (checking: boolean) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
   currentView: 'dashboard',
   user: null,
   sidebarOpen: false,
+  isCheckingSession: true,
   setView: (view) => set({ currentView: view }),
-  setUser: (user) => set({ user }),
+  setUser: (user) => set({ user, isCheckingSession: false }),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  setCheckingSession: (checking) => set({ isCheckingSession: checking }),
 }))
 
 export type { ViewType }

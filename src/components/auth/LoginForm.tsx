@@ -17,7 +17,7 @@ import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 const loginSchema = z.object({
-  email: z.string().email('Enter a valid email'),
+  email: z.string().email('Enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
 })
 
@@ -47,12 +47,9 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Login failed')
-      setUser(result)
       queryClient.clear()
-      setTimeout(() => {
-        useAppStore.getState().setView('dashboard')
-        window.location.reload()
-      }, 100)
+      setUser(result)
+      useAppStore.getState().setView('dashboard')
       toast.success('Welcome back!')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Login failed')
@@ -71,17 +68,19 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           <CardHeader className="space-y-1.5 pb-6">
             <CardTitle className="text-2xl font-bold tracking-tight">Sign In</CardTitle>
             <CardDescription className="text-sm text-muted-foreground">
-              Welcome back to PolicyPulse
+              Enter your credentials to access PolicyPulse
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@policypulse.ug"
+                  placeholder="you@organization.com"
+                  autoComplete="email"
+                  autoFocus
                   {...register('email')}
                   className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                 />
@@ -94,7 +93,8 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
                 <Input
                   id="password"
                   type="password"
-                  placeholder="password123"
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
                   {...register('password')}
                   className="h-11 transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
                 />
@@ -149,40 +149,11 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
                     className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline transition-colors"
                     onClick={onSwitchToRegister}
                   >
-                    Need an account? Register
+                    Don&apos;t have an account? Create one
                   </button>
                 </div>
               )}
             </form>
-
-            {/* Divider */}
-            <div className="relative pt-1">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border/50" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-transparent px-3 text-xs text-muted-foreground uppercase tracking-wider">
-                  Demo
-                </span>
-              </div>
-            </div>
-
-            {/* Demo credentials */}
-            <div className="rounded-lg border border-border/40 bg-muted/50 p-4 space-y-2.5 border-l-2 border-l-primary">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                Demo Credentials
-              </p>
-              <div className="space-y-1.5 text-xs text-muted-foreground">
-                <p>
-                  <span className="font-medium text-foreground/80">Admin:</span>{' '}
-                  admin@policypulse.ug / password123
-                </p>
-                <p>
-                  <span className="font-medium text-foreground/80">User:</span>{' '}
-                  user@policypulse.ug / password123
-                </p>
-              </div>
-            </div>
           </CardContent>
         </Card>
     </motion.div>

@@ -255,6 +255,53 @@ The PolicyPulse platform is stable and fully functional with:
 9. **Add email notification delivery** (beyond in-app web notifications)
 10. **Add API rate limiting** and request validation improvements
 11. **Add automated tests** (unit + integration)
+---
+Task ID: 11
+Agent: Main
+Task: Fix login redirect bug and remove demo credentials for production
+
+Work Log:
+- Diagnosed root cause: `LoginForm.tsx` line 54 called `window.location.reload()` after login, wiping Zustand's in-memory user state. On reload, `user` reset to `null`, showing login page before async `/api/auth/me` could restore the session.
+- Fixed `src/lib/store.ts`: Added `isCheckingSession` boolean (defaults `true`) and `setCheckingSession` action. `setUser` now also sets `isCheckingSession: false`.
+- Fixed `src/app/page.tsx`: Moved session restoration from AppHeader into a proper `useEffect` in `Home`. Added `SessionLoader` component (animated ShieldCheck + "Loading PolicyPulse..." text) shown when `isCheckingSession && !user`.
+- Fixed `src/components/layout/AppHeader.tsx`: Removed the fragile `useEffect` that was doing session restoration inside a component that returns `null` when no user.
+- Fixed `src/components/auth/LoginForm.tsx`: Removed `window.location.reload()` and the `setTimeout` wrapper. Login now uses `setUser(result)` directly, which triggers React re-render to show Dashboard. Removed entire demo credentials section (lines 158-185). Changed placeholder from `admin@policypulse.ug` to `you@organization.com`. Added `autoFocus` and proper `autoComplete` attributes. Changed register link text from "Register" to "Create one".
+
+Verification Results:
+- ESLint: Zero errors
+- Agent-browser login test: Filled credentials → clicked Sign In → landed on Dashboard with "Good Evening, Admin User" — no redirect to login
+- Agent-browser reload test: Reloaded page → session restored via cookie → stayed on Dashboard
+- Console: Zero errors
+
+Stage Summary:
+- Login flow works end-to-end without redirect loop
+- Session persists across page reloads via httpOnly cookie
+- No demo credentials visible anywhere on the login page
+- Production-ready login experience with loading state, proper accessibility attributes
+
+---
+
+## Current Project Status Assessment (post-fix)
+
+### Phase: Production-Ready Platform (v1.3.1)
+
+The PolicyPulse platform is stable and fully functional:
+- **Login flow**: Fixed — no redirect loop, smooth transition to dashboard, session persistence via cookie
+- **Production readiness**: No demo credentials exposed, professional placeholders, proper accessibility
+- **All previous features intact**: 12 views, 16+ API routes, AI analysis, command palette, keyboard shortcuts
+
+### Priority Recommendations for Next Phase
+1. **Add PDF text extraction** (pdf-parse) and **DOCX extraction** (mammoth) - HIGH IMPACT
+2. **Add basic diff algorithm** for document comparison before AI analysis
+3. **Add password reset flow** with email verification
+4. **Implement SMS notification channel** (Africa's Talking SDK)
+5. **Add organization/team management** (multi-user workspaces)
+6. **Add webhook support** for external integrations
+7. **Performance optimization** for large documents (streaming, chunking)
+8. **Add data import** (JSON/CSV upload for policies and documents)
+9. **Add email notification delivery** (beyond in-app web notifications)
+10. **Add API rate limiting** and request validation improvements
+11. **Add automated tests** (unit + integration)
 12. **Add PWA support** for offline access to cached policy documents
 13. **Server-side command palette search** for better performance with large datasets
 14. **Settings sync** across devices via backend API

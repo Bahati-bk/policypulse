@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAppStore, ViewType } from '@/lib/store'
@@ -23,10 +23,28 @@ import SettingsView from '@/components/views/SettingsView'
 import CommandPalette from '@/components/CommandPalette'
 import KeyboardShortcutsHelp from '@/components/KeyboardShortcutsHelp'
 import GPrefixHint from '@/components/GPrefixHint'
+import { ShieldCheck } from 'lucide-react'
+
+function SessionLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="relative">
+          <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+            <ShieldCheck className="w-7 h-7 text-primary" />
+          </div>
+          <div className="absolute -inset-2 rounded-xl border-2 border-primary/20 animate-ping" style={{ animationDuration: '1.5s' }} />
+        </div>
+        <p className="text-sm text-muted-foreground font-medium">Loading PolicyPulse...</p>
+      </div>
+    </div>
+  )
+}
 
 function AppContent() {
   const currentView = useAppStore(s => s.currentView)
   const user = useAppStore(s => s.user)
+  const isCheckingSession = useAppStore(s => s.isCheckingSession)
 
   const views: Record<ViewType, React.ReactNode> = {
     auth: <AuthView />,
@@ -41,6 +59,11 @@ function AppContent() {
     'audit-log': user?.role === 'ADMIN' ? <AuditLogView /> : <DashboardView />,
     users: user?.role === 'ADMIN' ? <UsersView /> : <DashboardView />,
     settings: <SettingsView />,
+  }
+
+  // Show loading while checking session on initial load
+  if (isCheckingSession && !user) {
+    return <SessionLoader />
   }
 
   return (
@@ -71,6 +94,30 @@ export default function Home() {
       },
     },
   }))
+
+  const checkSession = useCallback(async () => {
+    const { setUser, setView, setCheckingSession } = useAppStore.getState()
+    try {
+      const res = await fetch('/api/auth/me')
+      const data = await res.json()
+      if (data.id) {
+        setUser(data)
+      } else {
+        setView('auth')
+        setCheckingSession(false)
+      }
+    } catch {
+      setView('auth')
+      setCheckingSession(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const store = useAppStore.getState()
+    if (!store.user && store.isCheckingSession) {
+      checkSession()
+    }
+  }, [checkSession])
 
   return (
     <QueryClientProvider client={queryClient}>
