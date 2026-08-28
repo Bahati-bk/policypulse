@@ -134,10 +134,18 @@
   }
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: var(--muted-foreground);
-    border-radius: 3px;
+    border-radius: 6px;
     opacity: 0.5;
+    transition: background-color 0.2s;
   }
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background-color: var(--foreground);
+  }
+  .glass {
+    background-color: color-mix(in oklch, var(--card) 80%, transparent);
+    backdrop-filter: blur(16px);
+  }
+  .gradient-border {
+    border-image: linear-gradient(135deg, var(--primary), transparent) 1;
   }
 }

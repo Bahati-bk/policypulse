@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { useAppStore } from '@/lib/store'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -13,25 +12,34 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { FileText, Upload, Play, FolderOpen } from 'lucide-react'
+import { FileText, Upload, Play, FolderOpen, Search } from 'lucide-react'
 import { format } from 'date-fns'
 
 const statusColors: Record<string, string> = {
   UPLOADED: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   VALIDATING: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
-  PROCESSING: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-  READY: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
-  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+  PROCESSING: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400',
+  READY: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400',
+  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
+}
+
+const statusIcons: Record<string, React.ReactNode> = {
+  UPLOADED: <FileText className="h-4 w-4 text-slate-400" />,
+  VALIDATING: <FileText className="h-4 w-4 text-amber-400" />,
+  PROCESSING: <Play className="h-4 w-4 text-amber-500 animate-pulse" />,
+  READY: <FileText className="h-4 w-4 text-emerald-500" />,
+  FAILED: <FileText className="h-4 w-4 text-red-500" />,
 }
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
 
 export default function DocumentsView() {
-  const setView = useAppStore(s => s.setView)
   const queryClient = useQueryClient()
   const [selectedDoc, setSelectedDoc] = useState<Record<string, unknown> | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ['documents'],
@@ -46,7 +54,7 @@ export default function DocumentsView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
-      toast.success('Document uploaded')
+      toast.success('Document uploaded successfully')
       setUploadOpen(false)
     },
     onError: () => toast.error('Upload failed'),
@@ -60,7 +68,7 @@ export default function DocumentsView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['documents'] })
-      toast.success('Document processed')
+      toast.success('Document processed successfully')
     },
     onError: () => toast.error('Processing failed'),
   })
@@ -71,6 +79,18 @@ export default function DocumentsView() {
     const formData = new FormData(form)
     uploadMutation.mutate(formData)
   }
+
+  const filteredDocs = docs
+    .filter((doc: Record<string, unknown>) => {
+      if (!search) return true
+      const q = search.toLowerCase()
+      return (
+        ((doc.policy as Record<string, unknown>)?.title as string)?.toLowerCase().includes(q) ||
+        (doc.version as string)?.toLowerCase().includes(q) ||
+        (doc.fileName as string)?.toLowerCase().includes(q)
+      )
+    })
+    .filter((doc: Record<string, unknown>) => !statusFilter || (doc.processingStatus as string) === statusFilter)
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -110,26 +130,51 @@ export default function DocumentsView() {
         </Dialog>
       </div>
 
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by title, version, or filename..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {['', 'UPLOADED', 'PROCESSING', 'READY', 'FAILED'].map(s => (
+            <Button key={s} variant={statusFilter === s ? 'default' : 'outline'} size="sm"
+              onClick={() => setStatusFilter(s)}>
+              {s || 'All'}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2">
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-lg" />)}
         </div>
-      ) : docs.length === 0 ? (
+      ) : filteredDocs.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center">
             <FolderOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
-            <p className="text-muted-foreground">No documents yet. Upload your first document.</p>
+            <p className="font-medium text-muted-foreground">No documents found</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">
+              {search || statusFilter ? 'Try adjusting your search or filter criteria.' : 'Upload your first document to get started.'}
+            </p>
           </CardContent>
         </Card>
       ) : (
         <motion.div variants={container} className="grid gap-4 md:grid-cols-2">
-          {docs.map((doc: Record<string, unknown>) => (
+          {filteredDocs.map((doc: Record<string, unknown>) => (
             <motion.div key={doc.id as string} variants={item}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => setSelectedDoc(doc)}>
+              <Card className="hover:shadow-md transition-all cursor-pointer group" onClick={() => setSelectedDoc(doc)}>
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-5 w-5 text-primary shrink-0" />
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                        {statusIcons[(doc.processingStatus as string) || 'UPLOADED'] || statusIcons.UPLOADED}
+                      </div>
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">{(doc.policy as Record<string, unknown>)?.title || 'Untitled'}</p>
                         <p className="text-xs text-muted-foreground">Version: {doc.version as string || 'N/A'}</p>
@@ -140,9 +185,9 @@ export default function DocumentsView() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
-                    <span>{doc.fileName as string || 'No file'}</span>
-                    <span>·</span>
-                    <span>{doc.createdAt ? format(new Date(doc.createdAt as string), 'MMM d, yyyy') : ''}</span>
+                    <span className="truncate">{doc.fileName as string || 'No file'}</span>
+                    <span className="shrink-0">·</span>
+                    <span className="shrink-0">{doc.createdAt ? format(new Date(doc.createdAt as string), 'MMM d, yyyy') : ''}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -152,7 +197,7 @@ export default function DocumentsView() {
       )}
 
       <Dialog open={!!selectedDoc} onOpenChange={() => setSelectedDoc(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh]">
+        <DialogContent className="max-w-2xl max-h-[80vh] pointer-events-auto">
           <DialogHeader>
             <DialogTitle>Document Details</DialogTitle>
           </DialogHeader>
@@ -164,6 +209,8 @@ export default function DocumentsView() {
                   <div><p className="text-xs text-muted-foreground">Version</p><p className="font-medium text-sm">{selectedDoc.version as string || 'N/A'}</p></div>
                   <div><p className="text-xs text-muted-foreground">Type</p><Badge variant="outline">{selectedDoc.documentType as string}</Badge></div>
                   <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="outline" className={statusColors[(selectedDoc.processingStatus as string) || 'UPLOADED']}>{selectedDoc.processingStatus as string}</Badge></div>
+                  <div><p className="text-xs text-muted-foreground">File Name</p><p className="font-medium text-sm">{selectedDoc.fileName as string || 'N/A'}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Created</p><p className="font-medium text-sm">{selectedDoc.createdAt ? format(new Date(selectedDoc.createdAt as string), 'MMM d, yyyy') : 'N/A'}</p></div>
                 </div>
                 {(selectedDoc.processingStatus as string) === 'UPLOADED' && (
                   <Button onClick={() => processMutation.mutate(selectedDoc.id as string)} disabled={processMutation.isPending}>
@@ -172,8 +219,8 @@ export default function DocumentsView() {
                 )}
                 {selectedDoc.extractedText && (
                   <div>
-                    <p className="text-xs text-muted-foreground mb-2">Extracted Text</p>
-                    <div className="bg-muted rounded-lg p-4 text-sm whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-thin font-mono">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Extracted Text</p>
+                    <div className="bg-muted rounded-lg p-4 text-sm whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-thin font-mono border border-border/50">
                       {selectedDoc.extractedText as string}
                     </div>
                   </div>

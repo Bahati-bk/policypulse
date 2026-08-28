@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { motion } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
@@ -12,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ShieldCheck } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -59,49 +58,91 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
   }
 
   return (
-    <div className="w-full max-w-md">
-      <Card className="border-border/50 shadow-lg">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <ShieldCheck className="w-8 h-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">PolicyPulse</CardTitle>
-          <CardDescription>Legal &amp; Policy Change Intelligence</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="admin@policypulse.ug" {...register('email')} />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="password123" {...register('password')} />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Button>
-            {onSwitchToRegister && (
-              <div className="text-center">
-                <button
-                  type="button"
-                  className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
-                  onClick={onSwitchToRegister}
-                >
-                  Need an account? Register
-                </button>
-              </div>
+    <Card className="border-border/30 bg-card/80 backdrop-blur-xl shadow-xl shadow-black/[0.04] dark:shadow-black/[0.2]">
+      <CardHeader className="space-y-1.5 pb-6">
+        <CardTitle className="text-2xl font-bold tracking-tight">Sign In</CardTitle>
+        <CardDescription className="text-sm text-muted-foreground">
+          Welcome back to PolicyPulse
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="admin@policypulse.ug"
+              {...register('email')}
+              className="h-11"
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive mt-1.5">{errors.email.message}</p>
             )}
-            <div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground space-y-1">
-              <p className="font-medium">Demo credentials:</p>
-              <p>Admin: admin@policypulse.ug / password123</p>
-              <p>User: user@policypulse.ug / password123</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="password123"
+              {...register('password')}
+              className="h-11"
+            />
+            {errors.password && (
+              <p className="text-xs text-destructive mt-1.5">{errors.password.message}</p>
+            )}
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-11 text-sm font-semibold transition-shadow hover:shadow-md hover:shadow-primary/20"
+            disabled={loading}
+          >
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {loading ? 'Signing in...' : 'Sign In'}
+          </Button>
+          {onSwitchToRegister && (
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline transition-colors"
+                onClick={onSwitchToRegister}
+              >
+                Need an account? Register
+              </button>
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          )}
+        </form>
+
+        {/* Divider */}
+        <div className="relative pt-1">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border/50" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-transparent px-3 text-xs text-muted-foreground uppercase tracking-wider">
+              Demo
+            </span>
+          </div>
+        </div>
+
+        {/* Demo credentials */}
+        <div className="rounded-lg border border-border/40 bg-muted/50 p-4 space-y-2.5 border-l-2 border-l-primary">
+          <p className="text-xs font-semibold text-foreground uppercase tracking-wider">
+            Demo Credentials
+          </p>
+          <div className="space-y-1.5 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium text-foreground/80">Admin:</span>{' '}
+              admin@policypulse.ug / password123
+            </p>
+            <p>
+              <span className="font-medium text-foreground/80">User:</span>{' '}
+              user@policypulse.ug / password123
+            </p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

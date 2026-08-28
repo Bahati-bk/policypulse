@@ -8,6 +8,7 @@ import { AppHeader } from '@/components/layout/AppHeader'
 import AppFooter from '@/components/layout/AppFooter'
 import AuthView from '@/components/auth/AuthView'
 import DashboardView from '@/components/views/DashboardView'
+import PoliciesView from '@/components/views/PoliciesView'
 import DocumentsView from '@/components/views/DocumentsView'
 import ComparisonsView from '@/components/views/ComparisonsView'
 import AlertsView from '@/components/views/AlertsView'
@@ -22,6 +23,7 @@ function AppContent() {
   const views: Record<ViewType, React.ReactNode> = {
     auth: <AuthView />,
     dashboard: <DashboardView />,
+    policies: <PoliciesView />,
     documents: <DocumentsView />,
     comparisons: <ComparisonsView />,
     alerts: <AlertsView />,

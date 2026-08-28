@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { motion } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
@@ -12,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ShieldCheck } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 
 const registerSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -64,53 +63,107 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   }
 
   return (
-    <div className="w-full max-w-md">
-      <Card className="border-border/50 shadow-lg">
-        <CardHeader className="text-center space-y-2">
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <ShieldCheck className="w-8 h-8 text-primary" />
-          </div>
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>Join PolicyPulse to track policy changes</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
-              <Input id="name" placeholder="John Doe" {...register('name')} />
-              {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reg-email">Email</Label>
-              <Input id="reg-email" type="email" placeholder="you@example.com" {...register('email')} />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reg-phone">Phone (optional)</Label>
-              <Input id="reg-phone" placeholder="+256 700 000 000" {...register('phone')} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="reg-password">Password</Label>
-              <Input id="reg-password" type="password" placeholder="Min 6 characters" {...register('password')} />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
-            </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating account...' : 'Create Account'}
-            </Button>
-            {onSwitchToLogin && (
-              <div className="text-center">
-                <button
-                  type="button"
-                  className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
-                  onClick={onSwitchToLogin}
-                >
-                  Already have an account? Sign in
-                </button>
-              </div>
+    <Card className="border-border/30 bg-card/80 backdrop-blur-xl shadow-xl shadow-black/[0.04] dark:shadow-black/[0.2]">
+      <CardHeader className="space-y-1.5 pb-6">
+        <CardTitle className="text-2xl font-bold tracking-tight">Create Account</CardTitle>
+        <CardDescription className="text-sm text-muted-foreground">
+          Join PolicyPulse to track policy changes
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
+            <Input
+              id="name"
+              placeholder="John Doe"
+              {...register('name')}
+              className="h-11"
+            />
+            {errors.name && (
+              <p className="text-xs text-destructive mt-1.5">{errors.name.message}</p>
             )}
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="reg-email" className="text-sm font-medium">Email</Label>
+            <Input
+              id="reg-email"
+              type="email"
+              placeholder="you@example.com"
+              {...register('email')}
+              className="h-11"
+            />
+            {errors.email && (
+              <p className="text-xs text-destructive mt-1.5">{errors.email.message}</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="reg-phone" className="text-sm font-medium">
+              Phone <span className="text-muted-foreground font-normal">(optional)</span>
+            </Label>
+            <Input
+              id="reg-phone"
+              placeholder="+256 700 000 000"
+              {...register('phone')}
+              className="h-11"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="reg-password" className="text-sm font-medium">Password</Label>
+            <Input
+              id="reg-password"
+              type="password"
+              placeholder="Min 6 characters"
+              {...register('password')}
+              className="h-11"
+            />
+            {errors.password && (
+              <p className="text-xs text-destructive mt-1.5">{errors.password.message}</p>
+            )}
+          </div>
+          <Button
+            type="submit"
+            className="w-full h-11 text-sm font-semibold transition-shadow hover:shadow-md hover:shadow-primary/20"
+            disabled={loading}
+          >
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {loading ? 'Creating account...' : 'Create Account'}
+          </Button>
+          {onSwitchToLogin && (
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline transition-colors"
+                onClick={onSwitchToLogin}
+              >
+                Already have an account? Sign in
+              </button>
+            </div>
+          )}
+        </form>
+
+        {/* Divider */}
+        <div className="relative pt-1">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border/50" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-transparent px-3 text-xs text-muted-foreground uppercase tracking-wider">
+              Demo
+            </span>
+          </div>
+        </div>
+
+        {/* Demo hint */}
+        <div className="rounded-lg border border-border/40 bg-muted/50 p-4 border-l-2 border-l-primary">
+          <p className="text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground/80">Tip:</span>{' '}
+            Use demo credentials{' '}
+            <span className="font-mono text-foreground/70">admin@policypulse.ug / password123</span>{' '}
+            to explore all features.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

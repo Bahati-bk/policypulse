@@ -4,19 +4,16 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { useAppStore } from '@/lib/store'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
 import { Progress } from '@/components/ui/progress'
 import { GitCompare, Plus, Sparkles, ArrowRight, Eye, CheckCircle2, Clock, XCircle, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
-import ReactMarkdown from 'react-markdown'
 
 const statusIcon: Record<string, React.ReactNode> = {
   PENDING: <Clock className="h-4 w-4 text-amber-500" />,
@@ -200,7 +197,7 @@ export default function ComparisonsView() {
 
       {/* Comparison Detail Dialog */}
       <Dialog open={!!selectedComparison} onOpenChange={() => setSelectedComparison(null)}>
-        <DialogContent className="max-w-4xl max-h-[85vh]">
+        <DialogContent className="max-w-4xl max-h-[85vh] pointer-events-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GitCompare className="h-5 w-5 text-primary" />

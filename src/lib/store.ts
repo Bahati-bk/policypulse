@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 type ViewType =
   | 'dashboard'
+  | 'policies'
   | 'documents'
   | 'comparisons'
   | 'alerts'
