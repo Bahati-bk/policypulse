@@ -17,8 +17,8 @@ import { format } from 'date-fns'
 
 const statusIcon: Record<string, React.ReactNode> = {
   PENDING: <Clock className="h-4 w-4 text-amber-500" />,
-  COMPARING: <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />,
-  ANALYZING: <Sparkles className="h-4 w-4 text-purple-500 animate-pulse" />,
+  COMPARING: <Loader2 className="h-4 w-4 text-teal-500 animate-spin" />,
+  ANALYZING: <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />,
   COMPLETED: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
   FAILED: <XCircle className="h-4 w-4 text-red-500" />,
 }

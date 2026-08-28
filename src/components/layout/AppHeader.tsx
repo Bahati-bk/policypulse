@@ -131,12 +131,15 @@ export function AppHeader() {
                       className="flex flex-col items-start gap-1 p-3 cursor-pointer"
                       onClick={() => {
                         markNotifRead(n.id as string)
-                        setView('alerts')
+                        setView('notifications')
                       }}
                     >
                       <span className="font-medium text-sm">{n.title as string}</span>
                       <span className="text-xs text-muted-foreground">
-                        {n.sentAt ? formatDistanceToNow(new Date(n.sentAt as string), { addSuffix: true }) : ''}
+                        {n.sentAt
+                          ? formatDistanceToNow(new Date(n.sentAt as string), { addSuffix: true })
+                          : n.createdAt ? formatDistanceToNow(new Date(n.createdAt as string), { addSuffix: true })
+                          : ''}
                       </span>
                       {(n.status as string) === 'UNREAD' && (
                         <span className="h-2 w-2 rounded-full bg-primary" />
@@ -145,6 +148,14 @@ export function AppHeader() {
                   ))
                 )}
               </ScrollArea>
+              <div className="border-t p-2">
+                <button
+                  onClick={() => { setView('notifications') }}
+                  className="w-full text-center text-xs text-primary hover:underline py-1"
+                >
+                  View All Notifications
+                </button>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
 

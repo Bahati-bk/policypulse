@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAppStore, ViewType } from '@/lib/store'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { AppHeader } from '@/components/layout/AppHeader'
@@ -12,9 +13,11 @@ import PoliciesView from '@/components/views/PoliciesView'
 import DocumentsView from '@/components/views/DocumentsView'
 import ComparisonsView from '@/components/views/ComparisonsView'
 import AlertsView from '@/components/views/AlertsView'
+import NotificationsView from '@/components/views/NotificationsView'
 import ProfileView from '@/components/views/ProfileView'
 import CategoriesView from '@/components/views/CategoriesView'
 import AuditLogView from '@/components/views/AuditLogView'
+import CommandPalette from '@/components/CommandPalette'
 
 function AppContent() {
   const currentView = useAppStore(s => s.currentView)
@@ -27,18 +30,25 @@ function AppContent() {
     documents: <DocumentsView />,
     comparisons: <ComparisonsView />,
     alerts: <AlertsView />,
+    notifications: <NotificationsView />,
     profile: <ProfileView />,
     categories: user?.role === 'ADMIN' ? <CategoriesView /> : <DashboardView />,
     'audit-log': user?.role === 'ADMIN' ? <AuditLogView /> : <DashboardView />,
   }
 
   return (
-    <div
-      key={user ? currentView : 'auth'}
-      className="p-4 lg:p-6"
-      role="main"
-    >
-      {user ? (views[currentView] || <DashboardView />) : <AuthView />}
+    <div className="p-4 lg:p-6" role="main">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={user ? currentView : 'auth'}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2, ease: 'easeInOut' }}
+        >
+          {user ? (views[currentView] || <DashboardView />) : <AuthView />}
+        </motion.div>
+      </AnimatePresence>
     </div>
   )
 }
@@ -63,6 +73,7 @@ export default function Home() {
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto scrollbar-thin">
               <AppContent />
+              <CommandPalette />
             </div>
             <AppFooter />
           </div>

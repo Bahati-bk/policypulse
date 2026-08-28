@@ -12,10 +12,18 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get('limit') || '20')
   const action = searchParams.get('action')
   const entityType = searchParams.get('entityType')
+  const search = searchParams.get('search')
 
   const where: Record<string, unknown> = {}
   if (action) where.action = action
   if (entityType) where.entityType = entityType
+  if (search) {
+    where.OR = [
+      { action: { contains: search } },
+      { entityType: { contains: search } },
+      { metadata: { contains: search } },
+    ]
+  }
 
   const [logs, total] = await Promise.all([
     db.auditLog.findMany({

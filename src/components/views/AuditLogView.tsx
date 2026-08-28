@@ -34,12 +34,15 @@ export default function AuditLogView() {
   const [entityFilter, setEntityFilter] = useState('')
   const [search, setSearch] = useState('')
 
+  const debouncedSearch = search
+
   const { data, isLoading } = useQuery({
-    queryKey: ['audit-logs', page, actionFilter, entityFilter],
+    queryKey: ['audit-logs', page, actionFilter, entityFilter, debouncedSearch],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: '15' })
       if (actionFilter) params.set('action', actionFilter)
       if (entityFilter) params.set('entityType', entityFilter)
+      if (debouncedSearch) params.set('search', debouncedSearch)
       return fetch(`/api/audit-logs?${params}`).then(r => r.json())
     },
   })
@@ -87,7 +90,7 @@ export default function AuditLogView() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search logs..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Search logs..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} className="pl-9" />
         </div>
         <Select value={actionFilter} onValueChange={v => { setActionFilter(v); setPage(1) }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="All Actions" /></SelectTrigger>
@@ -133,17 +136,7 @@ export default function AuditLogView() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    logs
-                      .filter((log: Record<string, unknown>) => {
-                        if (!search) return true
-                        const q = search.toLowerCase()
-                        return (
-                          (log.action as string)?.toLowerCase().includes(q) ||
-                          (log.entityType as string)?.toLowerCase().includes(q) ||
-                          ((log.actor as Record<string, unknown>)?.name as string)?.toLowerCase().includes(q)
-                        )
-                      })
-                      .map((log: Record<string, unknown>) => (
+                    logs.map((log: Record<string, unknown>) => (
                         <TableRow key={log.id as string} className="hover:bg-muted/30">
                           <TableCell className="text-xs whitespace-nowrap">
                             {log.createdAt ? format(new Date(log.createdAt as string), 'MMM d, HH:mm') : ''}

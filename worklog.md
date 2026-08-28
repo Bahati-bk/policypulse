@@ -80,73 +80,116 @@ Agent: Main
 Task: Bug fixes, search/filter, CSV export, styling improvements
 
 Work Log:
-- Fixed ProfileView localForm state bug: added useEffect to sync localForm when profile data loads (useState only runs once, but profile data loads async)
-- Added search functionality to DocumentsView: search input with icon, filters by title/version/filename
-- Added status filter buttons to DocumentsView: All, UPLOADED, PROCESSING, READY, FAILED
-- Enhanced document cards with status-specific icons, hover color transitions, better empty state messages
-- Added search functionality to AlertsView: search by title/summary/changes, client-side filtering
-- Added CSV export to AlertsView: downloads filtered alerts as CSV with proper escaping
-- Enhanced alert cards with status-specific icons, severity badges, hover effects, group-hover color transitions
-- Enhanced alert detail dialog with border-l-4 colored accent cards for What Changed/Who Is Affected/What To Do
-- Added search functionality to AuditLogView: search by action/entity/actor
-- Added CSV export to AuditLogView with proper CSV escaping utility function
-- Enhanced audit log with hover:bg-muted/30 table rows, empty state for no results
-- Removed unused imports: ReactMarkdown from ComparisonsView, useAppStore from DocumentsView and ComparisonsView, Search from ComparisonsView, CardHeader/CardDescription from ComparisonsView
+- Fixed ProfileView localForm state bug: added useEffect to sync localForm when profile data loads
+- Added search functionality to DocumentsView, AlertsView, AuditLogView
+- Added status filter buttons to DocumentsView
+- Added CSV export to AlertsView and AuditLogView
+- Enhanced card designs with status-specific icons, hover effects, better empty states
+- Removed unused imports across all views
 - All changes pass ESLint with zero errors
 
 Stage Summary:
-- Profile form now properly syncs with server data on load
-- Search/filter added to Documents, Alerts, and Audit Log views
-- CSV export available on Alerts and Audit Log views
-- All views have improved card designs with status icons, hover effects, and better empty states
+- Search/filter on Documents, Alerts, Audit Log, Policies views
+- CSV export on Alerts and Audit Log
 - Code quality improved with unused import cleanup
+
+---
+Task ID: 7
+Agent: Main
+Task: QA review, bug fixes, styling enhancements, new features (Notifications, Command Palette, Enhanced Dashboard)
+
+Work Log:
+
+### Bug Fixes
+1. **Color violations in ComparisonsView**: Changed `text-blue-500` (COMPARING) to `text-teal-500` and `text-purple-500` (ANALYZING) to `text-amber-500` to comply with emerald/teal theme
+2. **`any` types in CategoriesView**: Replaced `any[]` with `Record<string, unknown>[]` on lines 33-34, 116, 134
+3. **Hardcoded footer year**: Changed `© 2024` to `© {new Date().getFullYear()}`
+4. **Prisma query logging**: Changed `log: ['query']` to `log: process.env.NODE_ENV === 'development' ? ['error'] : []` to reduce noise
+5. **Audit log search was client-side only**: Added server-side search parameter to `/api/audit-logs` API and updated AuditLogView to pass `search` query param
+6. **Notification timestamps missing**: Header dropdown now shows `createdAt` fallback when `sentAt` is missing
+7. **Notification link went to wrong view**: Clicking notification in header now navigates to 'notifications' view instead of 'alerts'
+
+### New Features
+1. **Command Palette (Ctrl+K)**: Full command palette with navigation, document search, policy search, recent views (localStorage), keyboard hints footer, emerald/teal themed
+2. **Notification Center**: New full-page NotificationsView with unread indicators, mark-read on click, mark-all-read button, clickable cards navigating to alerts
+3. **Enhanced Dashboard**:
+   - Policy Type Distribution donut chart (ACT/REGULATION/GUIDELINE/POLICY/DIRECTIVE)
+   - Policies by Category bar chart (recharts BarChart)
+   - Overview metrics row: Changes This Month, Avg. Confidence, Response Time
+   - Color-coded activity timeline with vertical connector line
+   - Animated gradient welcome banner with ShieldCheck icon
+   - Stat cards with gradient backgrounds and hover scale animation on icons
+   - Ctrl+K hint in action buttons area
+   - Improved empty states with larger icons and descriptive text
+   - Alert cards are now clickable (navigate to alerts view)
+4. **Sidebar notification badge**: Unread count badge on Notifications nav item
+5. **Header "View All Notifications" link**: Bottom of notification dropdown
+
+### Styling Enhancements
+1. **View transitions**: AnimatePresence with fade/slide on view changes (page.tsx)
+2. **Profile page redesign**: New profile header card with gradient banner, large avatar initials, role badge, icon-labeled form fields, hover effects on subscription items, active indicator dots
+3. **Categories view redesign**: Icon headers (Tags/Layers) for each item, description text, subscriber counts, improved empty states with descriptions, tab icons
+4. **Document file type icons**: PDF (rose File), DOCX (teal FileSpreadsheet), TXT (slate FileText)
+5. **Footer redesign**: ShieldCheck icon, "Built with ❤ for Uganda", version v1.1.0, cleaner layout
+6. **CSS utilities**: Added `@keyframes shimmer`, `.shimmer`, `@keyframes fade-in-up`, `.animate-fade-in-up`
+7. **Alerts clickable**: Dashboard alert cards now navigate to alerts view on click
+
+### Files Modified/Created
+- Created: `src/components/CommandPalette.tsx`, `src/components/views/NotificationsView.tsx`
+- Modified: `src/lib/store.ts`, `src/app/page.tsx`, `src/app/globals.css`, `src/lib/db.ts`
+- Modified: `src/components/layout/AppSidebar.tsx`, `src/components/layout/AppHeader.tsx`, `src/components/layout/AppFooter.tsx`
+- Modified: `src/components/views/DashboardView.tsx`, `src/components/views/ProfileView.tsx`, `src/components/views/CategoriesView.tsx`
+- Modified: `src/components/views/ComparisonsView.tsx`, `src/components/views/DocumentsView.tsx`, `src/components/views/AuditLogView.tsx`
+- Modified: `src/app/api/audit-logs/route.ts`
+
+Stage Summary:
+- 7 bug fixes applied, zero lint errors
+- 3 major new features (Command Palette, Notifications, Enhanced Dashboard)
+- 10 views total: Dashboard, Policies, Documents, Comparisons, Alerts, Notifications, Profile, Categories, Audit Log, Auth
+- All views have consistent styling, animations, and emerald/teal theme compliance
 
 ---
 
 ## Current Project Status Assessment
 
-### Phase: Enhanced MVP (Post-Styling & Feature Round)
+### Phase: Feature-Rich MVP (v1.1.0)
 
 The PolicyPulse platform is stable and fully functional with:
-- **9 views**: Dashboard, Policies, Documents, Comparisons, Alerts, Profile, Categories (admin), Audit Log (admin), Auth
+- **10 views**: Dashboard, Policies, Documents, Comparisons, Alerts, Notifications (NEW), Profile, Categories (admin), Audit Log (admin), Auth
 - **12+ API routes**: auth (4), documents (3), comparisons (3), alerts (4), categories (2), policies (2), stats, profile, subscriptions, notifications, seed, audit-logs
 - **AI analysis pipeline**: z-ai-web-dev-sdk integration for policy change detection
-- **Premium UI**: Auth split layout with branded panel, glassmorphism cards, emerald/teal theme, framer-motion animations
-- **Search/Filter**: Documents, Alerts, Audit Log, Policies all have search and filter capabilities
+- **Command Palette**: Ctrl+K quick navigation and search
+- **Premium UI**: Auth split layout, glassmorphism cards, emerald/teal theme, framer-motion animations, view transitions
+- **Data Visualizations**: 3 charts on dashboard (severity donut, policy type donut, category bar chart)
+- **Search/Filter**: Documents, Alerts, Audit Log, Policies, Command Palette all have search
 - **Data Export**: CSV export on Alerts and Audit Log
+- **Notification system**: In-app notifications with unread badge, header dropdown, full-page view
 - **Dark mode**: Full support with oklch color system
 - **Mobile responsive**: All views work on mobile with overlay sidebar
 
-### Completed Modifications (This Round)
-1. New Policies view with search, type/jurisdiction filters, detail dialog
-2. Auth page redesign with branded left panel, glassmorphism, decorative elements
-3. Dashboard enhancements: welcome banner, stat card borders/trends, recent alerts section, improved chart
-4. Sidebar enhancements: section labels, active border accent, user info at bottom
-5. Footer redesign: 3-section layout with copyright
-6. CSS utilities: .glass, .gradient-border, improved scrollbars
-7. Search/filter on Documents, Alerts, Audit Log views
-8. CSV export on Alerts and Audit Log
-9. ProfileView form state sync bug fix
-10. Unused import cleanup across all views
+### Verification Results
+- ESLint: **Zero errors** across all files
+- Compilation: **Successful** (verified via dev server startup and HTTP 200 response)
+- Agent-browser QA: **Not possible** due to network namespace isolation (known infrastructure limitation)
 
 ### Unresolved Issues / Risks
-1. **Gateway networking**: Caddy on port 81 returns 502 when connecting to Next.js on port 3000. The Caddy process (PID 2) appears to be in a different network namespace than the bun process, making localhost:3000 unreachable from Caddy. This prevents browser-based QA testing via agent-browser.
+1. **Network namespace isolation**: Caddy/agent-browser cannot reach Next.js on port 3000 due to different network namespaces. This prevents browser-based QA testing.
 2. **Login state transition**: Uses window.location.reload() after login for clean state. Works reliably but is not elegant.
 3. **PDF/DOCX text extraction**: Only TXT files extract text automatically.
 4. **Seed data duplication**: PolicyChange records use `create` not `upsert`, so re-running seed creates duplicates.
-5. **Gateway cold-start**: Caddy shows placeholder for ~40s before Next.js responds (when networking works).
-6. **USSD/SMS notifications**: Designed in schema but not implemented.
+5. **USSD/SMS notifications**: Designed in schema but not implemented.
+6. **Command palette document search**: Uses client-side filtering of pre-fetched data rather than server-side search.
 
 ### Priority Recommendations for Next Phase
-1. **Fix gateway networking issue** - investigate Caddy network namespace isolation
-2. **Fix login state without page reload** - investigate React hydration with gateway
-3. **Add PDF text extraction** (pdf-parse library)
-4. **Add DOCX text extraction** (mammoth library)
-5. **Add password reset flow**
-6. **Add email verification for registration**
-7. **Implement SMS notification channel** (Africa's Talking SDK)
-8. **Add basic diff algorithm** for document comparison before AI analysis
-9. **Add organization/team management** (multi-user)
-10. **Add webhook support** for external integrations
-11. **Performance optimization** for large documents (streaming, chunking)
-12. **Add data visualization dashboard** with bar charts, line charts, trend analysis
+1. **Add PDF text extraction** (pdf-parse library) and **DOCX extraction** (mammoth library)
+2. **Add password reset flow** with email verification
+3. **Implement SMS notification channel** (Africa's Talking SDK)
+4. **Add basic diff algorithm** for document comparison before AI analysis
+5. **Add organization/team management** (multi-user workspaces)
+6. **Add webhook support** for external integrations
+7. **Performance optimization** for large documents (streaming, chunking)
+8. **Add trend analysis** with line charts showing activity over time
+9. **Add keyboard shortcuts** beyond Ctrl+K (e.g., `g d` for dashboard, `g a` for alerts)
+10. **Fix seed data duplication** by using upsert patterns
+11. **Add data import/export** (JSON/CSV upload for policies and documents)
+12. **Add user management admin view** (list users, change roles, deactivate)

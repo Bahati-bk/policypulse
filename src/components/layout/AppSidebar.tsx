@@ -4,18 +4,20 @@ import { useAppStore, ViewType } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, BookOpen, FileText, GitCompare, Bell, UserCog, Tags, ScrollText, ShieldCheck, X,
+  LayoutDashboard, BookOpen, FileText, GitCompare, Bell, UserCog, Tags, ScrollText, ShieldCheck, X, Inbox,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { useQuery } from '@tanstack/react-query'
 
 interface NavItem {
   view: ViewType
   label: string
   icon: React.ReactNode
   adminOnly?: boolean
+  badge?: string
   section: 'main' | 'admin'
 }
 
@@ -25,6 +27,7 @@ const navItems: NavItem[] = [
   { view: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" />, section: 'main' },
   { view: 'comparisons', label: 'Comparisons', icon: <GitCompare className="h-4 w-4" />, section: 'main' },
   { view: 'alerts', label: 'Alerts', icon: <Bell className="h-4 w-4" />, section: 'main' },
+  { view: 'notifications', label: 'Notifications', icon: <Inbox className="h-4 w-4" />, section: 'main', badge: 'unread' },
   { view: 'profile', label: 'Profile', icon: <UserCog className="h-4 w-4" />, section: 'main' },
   { view: 'categories', label: 'Categories', icon: <Tags className="h-4 w-4" />, adminOnly: true, section: 'admin' },
   { view: 'audit-log', label: 'Audit Log', icon: <ScrollText className="h-4 w-4" />, adminOnly: true, section: 'admin' },
@@ -33,6 +36,15 @@ const navItems: NavItem[] = [
 function NavContent() {
   const { currentView, setView, user, setSidebarOpen } = useAppStore()
   const isAdmin = user?.role === 'ADMIN'
+
+  const { data: notifData } = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => fetch('/api/notifications').then(r => r.json()),
+    refetchInterval: 30000,
+    enabled: !!user,
+  })
+  const unreadCount = notifData?.unreadCount || 0
+
   const filteredItems = navItems.filter(item => !item.adminOnly || isAdmin)
 
   function handleNav(view: ViewType) {
@@ -64,7 +76,12 @@ function NavContent() {
               aria-current={currentView === item.view ? 'page' : undefined}
             >
               {item.icon}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badge === 'unread' && unreadCount > 0 && (
+                <span className="ml-auto h-5 min-w-5 flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1.5">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
           ))}
 

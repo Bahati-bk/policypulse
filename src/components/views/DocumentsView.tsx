@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { FileText, Upload, Play, FolderOpen, Search } from 'lucide-react'
+import { FileText, Upload, Play, FolderOpen, Search, File, FileSpreadsheet } from 'lucide-react'
 import { format } from 'date-fns'
 
 const statusColors: Record<string, string> = {
@@ -29,6 +29,14 @@ const statusIcons: Record<string, React.ReactNode> = {
   PROCESSING: <Play className="h-4 w-4 text-amber-500 animate-pulse" />,
   READY: <FileText className="h-4 w-4 text-emerald-500" />,
   FAILED: <FileText className="h-4 w-4 text-red-500" />,
+}
+
+function getFileIcon(fileName: string) {
+  const ext = fileName?.split('.').pop()?.toLowerCase()
+  if (ext === 'pdf') return <File className="h-4 w-4 text-rose-500" />
+  if (ext === 'docx' || ext === 'doc') return <FileSpreadsheet className="h-4 w-4 text-teal-500" />
+  if (ext === 'txt') return <FileText className="h-4 w-4 text-slate-500" />
+  return <FileText className="h-4 w-4 text-muted-foreground" />
 }
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
@@ -173,7 +181,11 @@ export default function DocumentsView() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-                        {statusIcons[(doc.processingStatus as string) || 'UPLOADED'] || statusIcons.UPLOADED}
+                        {(doc.processingStatus as string) === 'PROCESSING'
+                          ? statusIcons.PROCESSING
+                          : (doc.processingStatus as string) === 'FAILED'
+                            ? statusIcons.FAILED
+                            : getFileIcon(doc.fileName as string || '')}
                       </div>
                       <div className="min-w-0">
                         <p className="font-medium text-sm truncate">{(doc.policy as Record<string, unknown>)?.title || 'Untitled'}</p>

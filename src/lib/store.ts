@@ -6,6 +6,7 @@ type ViewType =
   | 'documents'
   | 'comparisons'
   | 'alerts'
+  | 'notifications'
   | 'profile'
   | 'categories'
   | 'audit-log'
