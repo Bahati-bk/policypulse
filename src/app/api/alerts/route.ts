@@ -30,3 +30,40 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(alerts)
 }
+
+export async function POST(req: NextRequest) {
+  const user = await getSessionUser(req)
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const body = await req.json()
+  const { title, summary, severity, changeType, whatChanged, whoIsAffected, whatToDo } = body
+
+  if (!title || !summary) {
+    return NextResponse.json({ error: 'Title and summary required' }, { status: 400 })
+  }
+
+  const alert = await db.alert.create({
+    data: {
+      title,
+      summary: summary || null,
+      severity: severity || 'MEDIUM',
+      changeType: changeType || 'CLARIFICATION',
+      whatChanged: whatChanged || null,
+      whoIsAffected: whoIsAffected || null,
+      whatToDo: whatToDo || null,
+      status: 'DRAFT',
+    },
+  })
+
+  await db.auditLog.create({
+    data: {
+      actorUserId: user.id,
+      action: 'CREATE',
+      entityType: 'Alert',
+      entityId: alert.id,
+      metadata: JSON.stringify({ title, severity }),
+    },
+  })
+
+  return NextResponse.json(alert, { status: 201 })
+}

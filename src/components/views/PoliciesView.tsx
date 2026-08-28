@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, useCallback } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
+import { toast } from 'sonner'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
@@ -17,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { BookOpen, Search, Filter, FileText, Calendar, Building2, Tag } from 'lucide-react'
+import { BookOpen, Search, Filter, FileText, Calendar, Building2, Tag, Plus, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 
 const policyTypeColors: Record<string, string> = {
@@ -55,19 +58,101 @@ interface Policy {
   documents?: PolicyDocument[]
 }
 
+interface Category {
+  id: string
+  name: string
+}
+
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
 
+const POLICY_TYPES = ['ACT', 'REGULATION', 'GUIDELINE', 'POLICY', 'DIRECTIVE']
+
 export default function PoliciesView() {
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [jurisdictionFilter, setJurisdictionFilter] = useState<string>('all')
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+
+  // Form state for new policy
+  const [formTitle, setFormTitle] = useState('')
+  const [formDescription, setFormDescription] = useState('')
+  const [formPolicyType, setFormPolicyType] = useState('POLICY')
+  const [formJurisdiction, setFormJurisdiction] = useState('Uganda')
+  const [formAuthority, setFormAuthority] = useState('')
+  const [formCategoryId, setFormCategoryId] = useState('')
+  const [formEffectiveDate, setFormEffectiveDate] = useState('')
+  const [formSourceUrl, setFormSourceUrl] = useState('')
+
+  const resetForm = useCallback(() => {
+    setFormTitle('')
+    setFormDescription('')
+    setFormPolicyType('POLICY')
+    setFormJurisdiction('Uganda')
+    setFormAuthority('')
+    setFormCategoryId('')
+    setFormEffectiveDate('')
+    setFormSourceUrl('')
+  }, [])
 
   const { data: policies = [], isLoading } = useQuery<Policy[]>({
     queryKey: ['policies'],
     queryFn: () => fetch('/api/policies').then(r => r.json()),
   })
+
+  const { data: categoriesData } = useQuery<{ categories: Category[] }>({
+    queryKey: ['categories'],
+    queryFn: () => fetch('/api/categories').then(r => r.json()),
+  })
+
+  const categories = categoriesData?.categories ?? []
+
+  const createMutation = useMutation({
+    mutationFn: async (data: {
+      title: string
+      description: string
+      policyType: string
+      jurisdiction: string
+      issuingAuthority: string
+      categoryId: string
+      effectiveDate: string
+      sourceUrl: string
+    }) => {
+      const res = await fetch('/api/policies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to create policy')
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['policies'] })
+      toast.success('Policy created successfully')
+      setCreateOpen(false)
+      resetForm()
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault()
+    createMutation.mutate({
+      title: formTitle,
+      description: formDescription,
+      policyType: formPolicyType,
+      jurisdiction: formJurisdiction,
+      issuingAuthority: formAuthority,
+      categoryId: formCategoryId,
+      effectiveDate: formEffectiveDate,
+      sourceUrl: formSourceUrl,
+    })
+  }
 
   const jurisdictions = useMemo(
     () => [...new Set(policies.map(p => p.jurisdiction))].sort(),
@@ -94,9 +179,145 @@ export default function PoliciesView() {
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Policies</h1>
-        <p className="text-muted-foreground text-sm">Browse and manage the policy registry</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Policies</h1>
+          <p className="text-muted-foreground text-sm">Browse and manage the policy registry</p>
+        </div>
+        <Dialog open={createOpen} onOpenChange={(open) => {
+          setCreateOpen(open)
+          if (!open) resetForm()
+        }}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Policy
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-lg max-h-[90vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Plus className="h-5 w-5 text-primary" />
+                Create New Policy
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="max-h-[75vh] pr-4">
+              <form onSubmit={handleCreate} className="space-y-4">
+                {/* Title */}
+                <div className="space-y-2">
+                  <Label htmlFor="policy-title">Title <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="policy-title"
+                    value={formTitle}
+                    onChange={e => setFormTitle(e.target.value)}
+                    placeholder="e.g. Income Tax Amendment Act 2024"
+                    required
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="policy-desc">Description <span className="text-destructive">*</span></Label>
+                  <Textarea
+                    id="policy-desc"
+                    value={formDescription}
+                    onChange={e => setFormDescription(e.target.value)}
+                    placeholder="Describe the policy in at least 10 characters..."
+                    required
+                    minLength={10}
+                    rows={3}
+                  />
+                </div>
+
+                {/* Type + Jurisdiction - 2 column grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Policy Type</Label>
+                    <Select value={formPolicyType} onValueChange={setFormPolicyType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POLICY_TYPES.map(t => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="policy-jurisdiction">Jurisdiction</Label>
+                    <Input
+                      id="policy-jurisdiction"
+                      value={formJurisdiction}
+                      onChange={e => setFormJurisdiction(e.target.value)}
+                      defaultValue="Uganda"
+                    />
+                  </div>
+                </div>
+
+                {/* Authority + Category - 2 column grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="policy-authority">Issuing Authority</Label>
+                    <Input
+                      id="policy-authority"
+                      value={formAuthority}
+                      onChange={e => setFormAuthority(e.target.value)}
+                      placeholder="e.g. Parliament of Uganda"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={formCategoryId} onValueChange={setFormCategoryId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Effective Date + Source URL */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="policy-date">Effective Date</Label>
+                    <Input
+                      id="policy-date"
+                      type="date"
+                      value={formEffectiveDate}
+                      onChange={e => setFormEffectiveDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="policy-url">Source URL</Label>
+                    <Input
+                      id="policy-url"
+                      type="url"
+                      value={formSourceUrl}
+                      onChange={e => setFormSourceUrl(e.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
+                </div>
+
+                {/* Buttons */}
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={createMutation.isPending}>
+                    {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Create Policy
+                  </Button>
+                </div>
+              </form>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filter Bar */}
@@ -118,11 +339,9 @@ export default function PoliciesView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="ACT">ACT</SelectItem>
-              <SelectItem value="REGULATION">REGULATION</SelectItem>
-              <SelectItem value="GUIDELINE">GUIDELINE</SelectItem>
-              <SelectItem value="POLICY">POLICY</SelectItem>
-              <SelectItem value="DIRECTIVE">DIRECTIVE</SelectItem>
+              {POLICY_TYPES.map(t => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={jurisdictionFilter} onValueChange={setJurisdictionFilter}>

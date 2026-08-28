@@ -4,7 +4,7 @@ import { useAppStore, ViewType } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, BookOpen, FileText, GitCompare, Bell, UserCog, Tags, ScrollText, ShieldCheck, X, Inbox, Users, Keyboard,
+  LayoutDashboard, BookOpen, FileText, GitCompare, Bell, UserCog, Tags, ScrollText, ShieldCheck, X, Inbox, Users, Keyboard, Settings,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -26,9 +26,10 @@ const navItems: NavItem[] = [
   { view: 'policies', label: 'Policies', icon: <BookOpen className="h-4 w-4" />, section: 'main' },
   { view: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" />, section: 'main' },
   { view: 'comparisons', label: 'Comparisons', icon: <GitCompare className="h-4 w-4" />, section: 'main' },
-  { view: 'alerts', label: 'Alerts', icon: <Bell className="h-4 w-4" />, section: 'main' },
+  { view: 'alerts', label: 'Alerts', icon: <Bell className="h-4 w-4" />, section: 'main', badge: 'pending' },
   { view: 'notifications', label: 'Notifications', icon: <Inbox className="h-4 w-4" />, section: 'main', badge: 'unread' },
   { view: 'profile', label: 'Profile', icon: <UserCog className="h-4 w-4" />, section: 'main' },
+  { view: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" />, section: 'main' },
   { view: 'users', label: 'Users', icon: <Users className="h-4 w-4" />, adminOnly: true, section: 'admin' },
   { view: 'categories', label: 'Categories', icon: <Tags className="h-4 w-4" />, adminOnly: true, section: 'admin' },
   { view: 'audit-log', label: 'Audit Log', icon: <ScrollText className="h-4 w-4" />, adminOnly: true, section: 'admin' },
@@ -46,6 +47,14 @@ function NavContent() {
   })
   const unreadCount = notifData?.unreadCount || 0
 
+  const { data: alertsData } = useQuery({
+    queryKey: ['alerts-pending-count'],
+    queryFn: () => fetch('/api/alerts?status=PENDING_REVIEW').then(r => r.json()),
+    refetchInterval: 30000,
+    enabled: !!user,
+  })
+  const pendingAlertsCount = Array.isArray(alertsData) ? alertsData.length : (alertsData?.count || alertsData?.total || 0)
+
   const filteredItems = navItems.filter(item => !item.adminOnly || isAdmin)
 
   function handleNav(view: ViewType) {
@@ -58,67 +67,65 @@ function NavContent() {
 
   const initials = (user?.name || 'U').slice(0, 2).toUpperCase()
 
+  function renderNavItem(item: NavItem) {
+    const isActive = currentView === item.view
+    return (
+      <button
+        key={item.view}
+        onClick={() => handleNav(item.view)}
+        className={cn(
+          'group relative w-full flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-left transition-all duration-200',
+          isActive
+            ? 'bg-primary/10 text-primary pl-[10px]'
+            : 'text-muted-foreground hover:text-foreground hover:bg-accent/80'
+        )}
+        aria-current={isActive ? 'page' : undefined}
+      >
+        {/* Active/hover left border indicator */}
+        <span
+          className={cn(
+            'absolute left-0 top-1/2 -translate-y-1/2 h-0 w-[3px] rounded-r-full transition-all duration-300',
+            isActive
+              ? 'h-5 bg-primary'
+              : 'h-0 group-hover:h-3 bg-primary/40'
+          )}
+        />
+        <span className={cn('transition-colors', isActive ? 'text-primary' : 'text-muted-foreground/70')}>{item.icon}</span>
+        <span className="flex-1">{item.label}</span>
+        {item.badge === 'unread' && unreadCount > 0 && (
+          <span className="ml-auto h-5 min-w-5 flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1.5 shadow-sm shadow-primary/25">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+        {item.badge === 'pending' && pendingAlertsCount > 0 && (
+          <span className="ml-auto h-5 min-w-5 flex items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white px-1.5 shadow-sm shadow-amber-500/25">
+            {pendingAlertsCount > 9 ? '9+' : pendingAlertsCount}
+          </span>
+        )}
+      </button>
+    )
+  }
+
   return (
     <>
       <ScrollArea className="flex-1 py-1">
         <nav className="space-y-0.5 px-3">
           <p className="px-3 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/50">Menu</p>
-          {mainItems.map(item => {
-            const isActive = currentView === item.view
-            return (
-              <button
-                key={item.view}
-                onClick={() => handleNav(item.view)}
-                className={cn(
-                  'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-left transition-all duration-150',
-                  isActive
-                    ? 'bg-primary/10 text-primary border-l-2 border-primary pl-[10px]'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/80'
-                )}
-                aria-current={isActive ? 'page' : undefined}
-              >
-                <span className={cn('transition-colors', isActive ? 'text-primary' : 'text-muted-foreground/70')}>{item.icon}</span>
-                <span className="flex-1">{item.label}</span>
-                {item.badge === 'unread' && unreadCount > 0 && (
-                  <span className="ml-auto h-5 min-w-5 flex items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground px-1.5 shadow-sm shadow-primary/25">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </button>
-            )
-          })}
+          {mainItems.map(item => renderNavItem(item))}
 
           {isAdmin && adminItems.length > 0 && (
             <>
               <Separator className="my-3" />
               <p className="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground/50">Administration</p>
-              {adminItems.map(item => {
-                const isActive = currentView === item.view
-                return (
-                  <button
-                    key={item.view}
-                    onClick={() => handleNav(item.view)}
-                    className={cn(
-                      'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-left transition-all duration-150',
-                      isActive
-                        ? 'bg-primary/10 text-primary border-l-2 border-primary pl-[10px]'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/80'
-                    )}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <span className={cn('transition-colors', isActive ? 'text-primary' : 'text-muted-foreground/70')}>{item.icon}</span>
-                    <span className="flex-1">{item.label}</span>
-                  </button>
-                )
-              })}
+              {adminItems.map(item => renderNavItem(item))}
             </>
           )}
         </nav>
       </ScrollArea>
 
-      {/* User section at bottom */}
+      {/* User section at bottom with subtle gradient background */}
       <div className="border-t border-border/40">
-        <div className="p-3 flex items-center gap-3">
+        <div className="p-3 flex items-center gap-3 bg-gradient-to-r from-primary/[0.03] via-transparent to-primary/[0.03]">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary to-teal-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-sm shadow-primary/20">
             {initials}
           </div>

@@ -17,6 +17,7 @@ const G_SHORTCUTS: Record<string, ViewType> = {
   a: 'alerts',
   n: 'notifications',
   u: 'profile',
+  s: 'settings',
 }
 
 const G_HINTS: { key: string; label: string }[] = [
@@ -27,6 +28,7 @@ const G_HINTS: { key: string; label: string }[] = [
   { key: 'a', label: 'Alerts' },
   { key: 'n', label: 'Notifications' },
   { key: 'u', label: 'Profile' },
+  { key: 's', label: 'Settings' },
 ]
 
 const ALL_SHORTCUTS: ShortcutEntry[] = [
@@ -37,6 +39,7 @@ const ALL_SHORTCUTS: ShortcutEntry[] = [
   { keys: 'g a', label: 'Alerts', description: 'Go to Alerts' },
   { keys: 'g n', label: 'Notifications', description: 'Go to Notifications' },
   { keys: 'g u', label: 'Profile', description: 'Go to Profile' },
+  { keys: 'g s', label: 'Settings', description: 'Go to Settings' },
   { keys: '?', label: 'Command Palette', description: 'Open command palette & shortcuts help' },
   { keys: 'Ctrl+K', label: 'Command Palette', description: 'Toggle command palette' },
 ]

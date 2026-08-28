@@ -108,6 +108,12 @@ export default function DashboardView() {
     queryFn: () => fetch('/api/categories').then(r => r.json()),
   })
 
+  const { data: recentDocsData } = useQuery({
+    queryKey: ['recent-documents-dashboard'],
+    queryFn: () => fetch('/api/documents').then(r => r.json()),
+  })
+
+  const recentDocs = (recentDocsData || []).slice(0, 4)
   const stats = data?.stats || { policies: 0, documents: 0, comparisons: 0, pendingAlerts: 0, users: 0 }
   const recentActivity = data?.recentActivity || []
   const severityDist = data?.severityDistribution || []
@@ -521,6 +527,68 @@ export default function DashboardView() {
                   Press <kbd className="pointer-events-none inline-flex h-4 select-none items-center rounded border bg-muted/50 px-1 font-mono text-[9px] font-medium">?</kbd> for all shortcuts
                 </p>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Documents */}
+          <Card className="border-border/40">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" /> Recent Documents
+                </CardTitle>
+                <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setView('documents')}>
+                  View All <ArrowRight className="ml-1 h-3 w-3" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 pt-0 space-y-2">
+              {recentDocs.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <FileText className="h-6 w-6 mx-auto mb-2 opacity-30" />
+                  <p className="text-xs">No documents yet</p>
+                </div>
+              ) : (
+                recentDocs.map((doc: Record<string, unknown>) => {
+                  const docType = (doc.documentType as string) || 'PDF'
+                  const docTypeColor = docType === 'PDF' ? 'text-red-500' : docType === 'DOCX' ? 'text-teal-500' : 'text-slate-500'
+                  const procStatus = (doc.processingStatus as string) || 'UPLOADED'
+                  const procColor = procStatus === 'READY' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : procStatus === 'PROCESSING' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                  const policy = doc.policy as Record<string, unknown> | null
+                  return (
+                    <motion.div
+                      key={doc.id as string}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.99 }}
+                      className="card-shine rounded-lg border border-border/50 p-3 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer group"
+                      onClick={() => setView('documents')}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                          <FileText className={`h-4 w-4 ${docTypeColor} transition-colors`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                            {doc.version || doc.fileName || 'Untitled'}
+                          </p>
+                          {policy && (
+                            <p className="text-[11px] text-muted-foreground truncate mt-0.5">{policy.title as string}</p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 ${procColor}`}>{procStatus}</Badge>
+                            <span className="text-[10px] text-muted-foreground">{docType}</span>
+                            {doc.createdAt && (
+                              <span className="text-[10px] text-muted-foreground ml-auto">
+                                {formatDistanceToNow(new Date(doc.createdAt as string), { addSuffix: true })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })
+              )}
             </CardContent>
           </Card>
         </motion.div>

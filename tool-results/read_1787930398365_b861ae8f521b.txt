@@ -1,0 +1,487 @@
+   100→
+   101→  const { data: policiesData } = useQuery({
+   102→    queryKey: ['policies-dashboard'],
+   103→    queryFn: () => fetch('/api/policies').then(r => r.json()),
+   104→  })
+   105→
+   106→  const { data: categoriesData } = useQuery({
+   107→    queryKey: ['categories-dashboard'],
+   108→    queryFn: () => fetch('/api/categories').then(r => r.json()),
+   109→  })
+   110→
+   111→  const stats = data?.stats || { policies: 0, documents: 0, comparisons: 0, pendingAlerts: 0, users: 0 }
+   112→  const recentActivity = data?.recentActivity || []
+   113→  const severityDist = data?.severityDistribution || []
+   114→  const activityTrend = data?.activityTrend || []
+   115→  const recentAlerts = (alertsData?.alerts || []).slice(0, 3)
+   116→  const totalChanges = severityDist.reduce((sum: number, e: Record<string, number>) => sum + (e.value || 0), 0)
+   117→
+   118→  // Policy type distribution
+   119→  const policies: Array<Record<string, unknown>> = policiesData || []
+   120→  const policyTypeDist = policies.reduce<Record<string, number>>((acc, p) => {
+   121→    const t = (p.policyType as string) || 'OTHER'
+   122→    acc[t] = (acc[t] || 0) + 1
+   123→    return acc
+   124→  }, {})
+   125→  const policyTypeChartData = Object.entries(policyTypeDist).map(([name, value]) => ({ name, value }))
+   126→  const totalPolicies = policies.length
+   127→
+   128→  // Category policy counts for bar chart
+   129→  const categories: Array<Record<string, unknown>> = categoriesData?.categories || []
+   130→  const categoryBarData = categories
+   131→    .map(c => ({
+   132→      name: (c.name as string).length > 15 ? (c.name as string).slice(0, 14) + '…' : (c.name as string),
+   133→      policies: (c._count as Record<string, number>)?.policies || 0,
+   134→    }))
+   135→    .filter(c => c.policies > 0)
+   136→    .slice(0, 6)
+   137→
+   138→  // Format trend data for display
+   139→  const trendChartData = activityTrend.map((d: Record<string, number>) => ({
+   140→    ...d,
+   141→    label: format(new Date(d.date + 'T00:00:00'), 'MMM d'),
+   142→  }))
+   143→
+   144→  const overviewMetrics = [
+   145→    { label: 'Changes This Month', value: String(totalChanges), icon: <Zap className="h-4 w-4" />, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10' },
+   146→    { label: 'Avg. Confidence', value: '87%', icon: <CheckCircle2 className="h-4 w-4" />, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10' },
+   147→    { label: 'Response Time', value: '< 2hrs', icon: <Clock className="h-4 w-4" />, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-500/10' },
+   148→  ]
+   149→
+   150→  const statCards = [
+   151→    { label: 'Policies', value: stats.policies, icon: <FileText className="h-5 w-5" />, color: 'text-emerald-600 dark:text-emerald-400', border: 'border-l-emerald-500', bg: 'from-emerald-500/5 to-transparent', trend: '+2 this week' },
+   152→    { label: 'Documents', value: stats.documents, icon: <BookOpen className="h-5 w-5" />, color: 'text-teal-600 dark:text-teal-400', border: 'border-l-teal-500', bg: 'from-teal-500/5 to-transparent', trend: '+1 today' },
+   153→    { label: 'Comparisons', value: stats.comparisons, icon: <GitCompare className="h-5 w-5" />, color: 'text-amber-600 dark:text-amber-400', border: 'border-l-amber-500', bg: 'from-amber-500/5 to-transparent', trend: 'All complete' },
+   154→    { label: 'Pending Alerts', value: stats.pendingAlerts, icon: <Bell className="h-5 w-5" />, color: 'text-rose-600 dark:text-rose-400', border: 'border-l-rose-500', bg: 'from-rose-500/5 to-transparent', trend: stats.pendingAlerts > 0 ? 'Needs review' : 'All clear' },
+   155→    { label: 'Users', value: stats.users, icon: <Users className="h-5 w-5" />, color: 'text-violet-600 dark:text-violet-400', border: 'border-l-violet-500', bg: 'from-violet-500/5 to-transparent', trend: '2 admins' },
+   156→  ]
+   157→
+   158→  return (
+   159→    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+   160→      {/* Onboarding Banner for first-time users */}
+   161→      <OnboardingBanner />
+   162→
+   163→      {/* Welcome Banner */}
+   164→      <motion.div variants={item}>
+   165→        <div className="relative rounded-2xl overflow-hidden">
+   166→          {/* Animated gradient background */}
+   167→          <div className="absolute inset-0 bg-gradient-to-r from-primary/15 via-primary/5 to-teal-500/10" />
+   168→          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent" />
+   169→          <div className="relative border border-primary/20 bg-gradient-to-r from-primary/[0.06] via-primary/[0.1] to-teal-500/[0.06] px-6 py-6 rounded-2xl">
+   170→            <div className="flex items-center justify-between">
+   171→              <div className="flex items-center gap-4">
+   172→                <div className="h-12 w-12 rounded-xl bg-primary/15 backdrop-blur-sm flex items-center justify-center ring-1 ring-primary/20">
+   173→                  <ShieldCheck className="h-6 w-6 text-primary" />
+   174→                </div>
+   175→                <div>
+   176→                  <h1 className="text-2xl font-bold tracking-tight">
+   177→                    {getGreeting()}, {user?.name || 'User'}
+   178→                  </h1>
+   179→                  <p className="text-muted-foreground text-sm mt-1">
+   180→                    Here is what is happening with Uganda&apos;s policy landscape today.
+   181→                  </p>
+   182→                </div>
+   183→              </div>
+   184→              <div className="hidden md:flex items-center gap-2">
+   185→                <Button size="sm" onClick={() => setView('documents')} className="gap-2">
+   186→                  <Upload className="h-3.5 w-3.5" />Upload Document
+   187→                </Button>
+   188→                <Button size="sm" variant="outline" onClick={() => setView('comparisons')} className="gap-2">
+   189→                  <Plus className="h-3.5 w-3.5" />Compare
+   190→                </Button>
+   191→              </div>
+   192→            </div>
+   193→          </div>
+   194→        </div>
+   195→      </motion.div>
+   196→
+   197→      {/* Overview Metrics + Mobile Actions */}
+   198→      <motion.div variants={item} className="grid grid-cols-3 gap-3">
+   199→        {overviewMetrics.map(m => (
+   200→          <Card key={m.label} className="bg-gradient-to-br from-card to-muted/30 border-border/40 hover:border-border/70 transition-colors">
+   201→            <CardContent className="p-4 flex items-center gap-3">
+   202→              <div className={`h-9 w-9 rounded-lg ${m.bg} flex items-center justify-center ${m.color} shrink-0`}>
+   203→                {m.icon}
+   204→              </div>
+   205→              <div className="min-w-0">
+   206→                <p className="text-lg font-bold tabular-nums leading-tight">{m.value}</p>
+   207→                <p className="text-[11px] text-muted-foreground truncate">{m.label}</p>
+   208→              </div>
+   209→            </CardContent>
+   210→          </Card>
+   211→        ))}
+   212→      </motion.div>
+   213→
+   214→      {/* Stat Cards */}
+   215→      <motion.div variants={container} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+   216→        {statCards.map(s => (
+   217→          <motion.div key={s.label} variants={item}>
+   218→            <Card className={`hover:shadow-lg hover:shadow-black/5 transition-all duration-300 border-l-4 ${s.border} bg-gradient-to-br ${s.bg} group cursor-default`}>
+   219→              <CardContent className="p-4">
+   220→                <div className="flex items-center justify-between">
+   221→                  <div className={`transition-transform duration-300 group-hover:scale-110 ${s.color}`}>{s.icon}</div>
+   222→                  {isLoading ? (
+   223→                    <Skeleton className="h-8 w-8 rounded" />
+   224→                  ) : (
+   225→                    <span className="text-2xl font-bold tabular-nums">{s.value}</span>
+   226→                  )}
+   227→                </div>
+   228→                <p className="text-xs text-muted-foreground mt-2 font-medium">{s.label}</p>
+   229→                <div className="flex items-center gap-1 mt-1.5">
+   230→                  <TrendingUp className="h-3 w-3 text-emerald-500" />
+   231→                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">{s.trend}</p>
+   232→                </div>
+   233→              </CardContent>
+   234→            </Card>
+   235→          </motion.div>
+   236→        ))}
+   237→      </motion.div>
+   238→
+   239→      {/* Charts Row */}
+   240→      <div className="grid lg:grid-cols-2 gap-5">
+   241→        {/* Activity Trend Line Chart - NEW */}
+   242→        <motion.div variants={item}>
+   243→          <Card className="border-border/40">
+   244→            <CardHeader className="pb-2">
+   245→              <CardTitle className="text-base font-semibold flex items-center gap-2">
+   246→                <LineChartIcon className="h-4 w-4 text-primary" /> Activity Trend
+   247→                <Badge variant="outline" className="text-[10px] ml-auto font-normal">Last 14 days</Badge>
+   248→              </CardTitle>
+   249→            </CardHeader>
+   250→            <CardContent className="p-4 pt-0">
+   251→              {trendChartData.length === 0 ? (
+   252→                <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">No activity data</div>
+   253→              ) : (
+   254→                <div className="h-56">
+   255→                  <ResponsiveContainer width="100%" height="100%">
+   256→                    <AreaChart data={trendChartData} margin={{ top: 5, right: 5, bottom: 5, left: -15 }}>
+   257→                      <defs>
+   258→                        <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+   259→                          <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.3} />
+   260→                          <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0.02} />
+   261→                        </linearGradient>
+   262→                      </defs>
+   263→                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+   264→                      <XAxis dataKey="label" tick={{ fontSize: 10 }} stroke="var(--muted-foreground)" axisLine={false} tickLine={false} />
+   265→                      <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--muted-foreground)" axisLine={false} tickLine={false} />
+   266→                      <Tooltip
+   267→                        contentStyle={{
+   268→                          backgroundColor: 'var(--card)',
+   269→                          border: '1px solid var(--border)',
+   270→                          borderRadius: '10px',
+   271→                          fontSize: '12px',
+   272→                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+   273→                        }}
+   274→                      />
+   275→                      <Area type="monotone" dataKey="total" stroke="var(--chart-1)" strokeWidth={2} fill="url(#trendGradient)" dot={false} activeDot={{ r: 4, fill: 'var(--chart-1)', stroke: 'var(--card)', strokeWidth: 2 }} />
+   276→                    </AreaChart>
+   277→                  </ResponsiveContainer>
+   278→                </div>
+   279→              )}
+   280→            </CardContent>
+   281→          </Card>
+   282→        </motion.div>
+   283→
+   284→        {/* Policy Type Distribution */}
+   285→        <motion.div variants={item}>
+   286→          <Card className="border-border/40">
+   287→            <CardHeader className="pb-2">
+   288→              <CardTitle className="text-base font-semibold flex items-center gap-2">
+   289→                <PieChartIcon className="h-4 w-4 text-primary" /> Policy Types
+   290→              </CardTitle>
+   291→            </CardHeader>
+   292→            <CardContent className="p-4 pt-0">
+   293→              {policyTypeChartData.length === 0 ? (
+   294→                <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">No data</div>
+   295→              ) : (
+   296→                <div className="h-56 relative">
+   297→                  <ResponsiveContainer width="100%" height="100%">
+   298→                    <PieChart>
+   299→                      <Pie data={policyTypeChartData} cx="50%" cy="50%" innerRadius={48} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
+   300→                        {policyTypeChartData.map((entry) => (
+   301→                          <Cell key={entry.name} fill={policyTypeColors[entry.name] || 'var(--chart-4)'} />
+   302→                        ))}
+   303→                      </Pie>
+   304→                      <Tooltip
+   305→                        contentStyle={{
+   306→                          backgroundColor: 'var(--card)',
+   307→                          border: '1px solid var(--border)',
+   308→                          borderRadius: '10px',
+   309→                          fontSize: '12px',
+   310→                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+   311→                        }}
+   312→                      />
+   313→                    </PieChart>
+   314→                  </ResponsiveContainer>
+   315→                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+   316→                    <div className="text-center">
+   317→                      <p className="text-2xl font-bold tabular-nums">{totalPolicies}</p>
+   318→                      <p className="text-[10px] text-muted-foreground">policies</p>
+   319→                    </div>
+   320→                  </div>
+   321→                  <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 mt-1">
+   322→                    {policyTypeChartData.map((entry) => (
+   323→                      <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+   324→                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: policyTypeColors[entry.name] || '#888' }} />
+   325→                        {entry.name}
+   326→                      </div>
+   327→                    ))}
+   328→                  </div>
+   329→                </div>
+   330→              )}
+   331→            </CardContent>
+   332→          </Card>
+   333→        </motion.div>
+   334→      </div>
+   335→
+   336→      {/* Category Bar Chart + Severity Row */}
+   337→      <div className="grid lg:grid-cols-3 gap-5">
+   338→        {/* Category Bar Chart - 2 cols */}
+   339→        <motion.div variants={item} className="lg:col-span-2">
+   340→          <Card className="border-border/40">
+   341→            <CardHeader className="pb-2">
+   342→              <CardTitle className="text-base font-semibold flex items-center gap-2">
+   343→                <BarChart3 className="h-4 w-4 text-primary" /> Policies by Category
+   344→              </CardTitle>
+   345→            </CardHeader>
+   346→            <CardContent className="p-4 pt-0">
+   347→              {categoryBarData.length === 0 ? (
+   348→                <div className="h-52 flex items-center justify-center text-sm text-muted-foreground">No data</div>
+   349→              ) : (
+   350→                <div className="h-52">
+   351→                  <ResponsiveContainer width="100%" height="100%">
+   352→                    <BarChart data={categoryBarData} margin={{ top: 5, right: 5, bottom: 25, left: 0 }}>
+   353→                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+   354→                      <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" stroke="var(--muted-foreground)" axisLine={false} tickLine={false} />
+   355→                      <YAxis tick={{ fontSize: 10 }} allowDecimals={false} stroke="var(--muted-foreground)" axisLine={false} tickLine={false} />
+   356→                      <Tooltip
+   357→                        contentStyle={{
+   358→                          backgroundColor: 'var(--card)',
+   359→                          border: '1px solid var(--border)',
+   360→                          borderRadius: '10px',
+   361→                          fontSize: '12px',
+   362→                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+   363→                        }}
+   364→                      />
+   365→                      <Bar dataKey="policies" fill="var(--chart-1)" radius={[6, 6, 0, 0]} />
+   366→                    </BarChart>
+   367→                  </ResponsiveContainer>
+   368→                </div>
+   369→              )}
+   370→            </CardContent>
+   371→          </Card>
+   372→        </motion.div>
+   373→
+   374→        {/* Severity Distribution - 1 col */}
+   375→        <motion.div variants={item}>
+   376→          <Card className="border-border/40 h-full">
+   377→            <CardHeader className="pb-2">
+   378→              <CardTitle className="text-base font-semibold">Severity Distribution</CardTitle>
+   379→            </CardHeader>
+   380→            <CardContent className="p-4 pt-0">
+   381→              {severityDist.length === 0 ? (
+   382→                <div className="h-52 flex items-center justify-center text-sm text-muted-foreground">No data</div>
+   383→              ) : (
+   384→                <div className="h-52 relative">
+   385→                  <ResponsiveContainer width="100%" height="100%">
+   386→                    <PieChart>
+   387→                      <Pie data={severityDist} cx="50%" cy="50%" innerRadius={42} outerRadius={72} paddingAngle={4} dataKey="value">
+   388→                        {severityDist.map((entry: Record<string, string>) => (
+   389→                          <Cell key={entry.name} fill={getSeverityColor(entry.name)} />
+   390→                        ))}
+   391→                      </Pie>
+   392→                      <Tooltip
+   393→                        contentStyle={{
+   394→                          backgroundColor: 'var(--card)',
+   395→                          border: '1px solid var(--border)',
+   396→                          borderRadius: '10px',
+   397→                          fontSize: '12px',
+   398→                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+   399→                        }}
+   400→                      />
+   401→                    </PieChart>
+   402→                  </ResponsiveContainer>
+   403→                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+   404→                    <div className="text-center">
+   405→                      <p className="text-2xl font-bold tabular-nums">{totalChanges}</p>
+   406→                      <p className="text-[10px] text-muted-foreground">changes</p>
+   407→                    </div>
+   408→                  </div>
+   409→                </div>
+   410→              )}
+   411→              <div className="flex justify-center gap-4 mt-2">
+   412→                {severityDist.map((entry: Record<string, string>) => (
+   413→                  <div key={entry.name} className="flex items-center gap-1.5 text-xs">
+   414→                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getSeverityColor(entry.name) }} />
+   415→                    <span className="font-medium">{entry.name}</span>
+   416→                    <span className="text-muted-foreground">({entry.value})</span>
+   417→                  </div>
+   418→                ))}
+   419→              </div>
+   420→            </CardContent>
+   421→          </Card>
+   422→        </motion.div>
+   423→      </div>
+   424→
+   425→      {/* Activity Timeline + Quick Actions */}
+   426→      <div className="grid lg:grid-cols-3 gap-5">
+   427→        {/* Activity Timeline */}
+   428→        <motion.div variants={item} className="lg:col-span-2">
+   429→          <Card className="border-border/40">
+   430→            <CardHeader className="pb-2">
+   431→              <div className="flex items-center justify-between">
+   432→                <CardTitle className="text-base font-semibold flex items-center gap-2">
+   433→                  <Activity className="h-4 w-4 text-primary" /> Recent Activity
+   434→                </CardTitle>
+   435→                {isAdmin && (
+   436→                  <Button variant="ghost" size="sm" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setView('audit-log')}>
+   437→                    View All <ArrowRight className="ml-1 h-3 w-3" />
+   438→                  </Button>
+   439→                )}
+   440→              </div>
+   441→            </CardHeader>
+   442→            <CardContent className="p-4 pt-0">
+   443→              <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
+   444→                {isLoading ? (
+   445→                  Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg mb-2" />)
+   446→                ) : recentActivity.length === 0 ? (
+   447→                  <div className="text-center py-12 text-muted-foreground">
+   448→                    <div className="mx-auto w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-3">
+   449→                      <Activity className="h-7 w-7 opacity-40" />
+   450→                    </div>
+   451→                    <p className="font-medium text-sm">No recent activity</p>
+   452→                    <p className="text-xs mt-1">Activity will appear here as you use the platform.</p>
+   453→                  </div>
+   454→                ) : (
+   455→                  <div className="relative">
+   456→                    <div className="absolute left-[15px] top-3 bottom-3 w-px bg-gradient-to-b from-primary/30 via-border to-transparent" />
+   457→                    <div className="space-y-1">
+   458→                      {recentActivity.map((log: Record<string, unknown>, i: number) => (
+   459→                        <motion.div
+   460→                          key={log.id as string}
+   461→                          initial={{ opacity: 0, x: -8 }}
+   462→                          animate={{ opacity: 1, x: 0 }}
+   463→                          transition={{ delay: i * 0.04, duration: 0.25 }}
+   464→                          className="flex items-start gap-3 text-sm relative group"
+   465→                        >
+   466→                          <div className="relative mt-1 shrink-0">
+   467→                            <div className={`h-[30px] w-[30px] rounded-full border-2 border-background flex items-center justify-center z-10 ${getActivityColor(log.action as string)}`}>
+   468→                              <span className="text-[10px]">{getActivityIcon(log.action as string)}</span>
+   469→                            </div>
+   470→                          </div>
+   471→                          <div className="flex-1 min-w-0 pb-3 group-hover:bg-accent/30 -mx-1 px-1 rounded-md transition-colors">
+   472→                            <div className="flex items-center gap-2 flex-wrap">
+   473→                              <span className="font-medium text-sm">{log.action as string}</span>
+   474→                              <Badge variant="outline" className="text-[10px] font-normal">{log.entityType as string}</Badge>
+   475→                            </div>
+   476→                            <p className="text-xs text-muted-foreground mt-0.5">
+   477→                              {(log.actor as Record<string, unknown>)?.name || 'System'} &middot; {formatDistanceToNow(new Date(log.createdAt as string), { addSuffix: true })}
+   478→                            </p>
+   479→                          </div>
+   480→                        </motion.div>
+   481→                      ))}
+   482→                    </div>
+   483→                  </div>
+   484→                )}
+   485→              </div>
+   486→            </CardContent>
+   487→          </Card>
+   488→        </motion.div>
+   489→
+   490→        {/* Right Column */}
+   491→        <motion.div variants={item} className="space-y-5">
+   492→          {/* Quick Actions */}
+   493→          <Card className="border-border/40">
+   494→            <CardHeader className="pb-2">
+   495→              <CardTitle className="text-base font-semibold">Quick Actions</CardTitle>
+   496→            </CardHeader>
+   497→            <CardContent className="p-4 pt-0 space-y-2">
+   498→              {[
+   499→                { icon: <Upload className="h-4 w-4" />, label: 'Upload Document', view: 'documents' as const, desc: 'Add a new policy document' },
+   500→                { icon: <Plus className="h-4 w-4" />, label: 'New Comparison', view: 'comparisons' as const, desc: 'Compare document versions' },
+   501→                { icon: <ArrowRight className="h-4 w-4" />, label: 'View Alerts', view: 'alerts' as const, desc: 'Review pending alerts' },
+   502→                { icon: <BookOpen className="h-4 w-4" />, label: 'Browse Policies', view: 'policies' as const, desc: 'Explore policy registry' },
+   503→                ...(isAdmin ? [{ icon: <ScrollText className="h-4 w-4" />, label: 'View Audit Log', view: 'audit-log' as const, desc: 'Track system activity' }] : []),
+   504→              ].map(action => (
+   505→                <Button
+   506→                  key={action.view}
+   507→                  variant="outline"
+   508→                  className="w-full justify-start hover:bg-accent/80 hover:border-primary/30 transition-all duration-200 h-auto py-3 group"
+   509→                  onClick={() => setView(action.view)}
+   510→                >
+   511→                  <span className={`${action.view === 'alerts' ? 'text-rose-500' : 'text-primary'} group-hover:scale-110 transition-transform`}>{action.icon}</span>
+   512→                  <span className="ml-2 flex flex-col items-start">
+   513→                    <span className="text-sm font-medium">{action.label}</span>
+   514→                    <span className="text-[11px] text-muted-foreground font-normal">{action.desc}</span>
+   515→                  </span>
+   516→                  <ArrowUpRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground transition-all" />
+   517→                </Button>
+   518→              ))}
+   519→              <div className="pt-1">
+   520→                <p className="text-[10px] text-muted-foreground text-center">
+   521→                  Press <kbd className="pointer-events-none inline-flex h-4 select-none items-center rounded border bg-muted/50 px-1 font-mono text-[9px] font-medium">?</kbd> for all shortcuts
+   522→                </p>
+   523→              </div>
+   524→            </CardContent>
+   525→          </Card>
+   526→        </motion.div>
+   527→      </div>
+   528→
+   529→      {/* Recent Alerts Section */}
+   530→      <motion.div variants={item}>
+   531→        <Card className="border-border/40">
+   532→          <CardHeader className="pb-2">
+   533→            <div className="flex items-center justify-between">
+   534→              <CardTitle className="text-base font-semibold flex items-center gap-2">
+   535→                <Bell className="h-4 w-4 text-primary" /> Recent Alerts
+   536→              </CardTitle>
+   537→              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setView('alerts')}>
+   538→                View All <ArrowRight className="ml-1 h-3 w-3" />
+   539→              </Button>
+   540→            </div>
+   541→          </CardHeader>
+   542→          <CardContent className="p-4 pt-0">
+   543→            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+   544→              {recentAlerts.length === 0 ? (
+   545→                <div className="col-span-full text-center py-8 text-muted-foreground">
+   546→                  <div className="mx-auto w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-3">
+   547→                    <Bell className="h-6 w-6 opacity-40" />
+   548→                  </div>
+   549→                  <p className="font-medium text-sm">No alerts yet</p>
+   550→                  <p className="text-xs mt-1 text-muted-foreground/70">Alerts will appear when policy changes are detected and reviewed.</p>
+   551→                </div>
+   552→              ) : (
+   553→                recentAlerts.map((alert: Record<string, unknown>) => (
+   554→                  <motion.div
+   555→                    key={alert.id as string}
+   556→                    whileHover={{ scale: 1.01 }}
+   557→                    whileTap={{ scale: 0.99 }}
+   558→                    className="rounded-xl border border-border/50 p-4 hover:bg-accent/50 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group bg-gradient-to-br from-card to-muted/20"
+   559→                    onClick={() => setView('alerts')}
+   560→                  >
+   561→                    <div className="flex items-start justify-between gap-2">
+   562→                      <p className="text-sm font-medium truncate flex-1 group-hover:text-primary transition-colors leading-snug">{alert.title as string}</p>
+   563→                      <Badge className={`shrink-0 text-[10px] ${getAlertStatusColor(alert.status as string)}`}>
+   564→                        {(alert.status as string).replace(/_/g, ' ')}
+   565→                      </Badge>
+   566→                    </div>
+   567→                    {alert.summary && (
+   568→                      <p className="text-[11px] text-muted-foreground mt-2 line-clamp-2 leading-relaxed">{alert.summary as string}</p>
+   569→                    )}
+   570→                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
+   571→                      <p className="text-[11px] text-muted-foreground">
+   572→                        {formatDistanceToNow(new Date(alert.createdAt as string), { addSuffix: true })}
+   573→                      </p>
+   574→                      <ArrowUpRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-primary transition-all" />
+   575→                    </div>
+   576→                  </motion.div>
+   577→                ))
+   578→              )}
+   579→            </div>
+   580→          </CardContent>
+   581→        </Card>
+   582→      </motion.div>
+   583→    </motion.div>
+   584→  )
+   585→}
+   586→

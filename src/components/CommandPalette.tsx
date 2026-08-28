@@ -14,6 +14,7 @@ import {
   Search,
   Inbox,
   Users,
+  Settings,
 } from 'lucide-react'
 import { useAppStore, type ViewType } from '@/lib/store'
 import {
@@ -62,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'alerts', label: 'Alerts', icon: Bell },
   { view: 'notifications', label: 'Notifications', icon: Inbox },
   { view: 'profile', label: 'Profile', icon: User },
+  { view: 'settings', label: 'Settings', icon: Settings },
   { view: 'categories', label: 'Categories', icon: Tags, adminOnly: true },
   { view: 'audit-log', label: 'Audit Log', icon: ClipboardList, adminOnly: true },
   { view: 'users', label: 'Users', icon: Users, adminOnly: true },
@@ -75,6 +77,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
   alerts: 'Alerts',
   notifications: 'Notifications',
   profile: 'Profile',
+  settings: 'Settings',
   categories: 'Categories',
   'audit-log': 'Audit Log',
   users: 'Users',

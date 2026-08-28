@@ -3,16 +3,17 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAppStore } from '@/lib/store'
 import { toast } from 'sonner'
-import { Bell, LogOut, User, Menu, Moon, Sun, ShieldCheck, Search, Command } from 'lucide-react'
+import { Bell, LogOut, User, Menu, Moon, Sun, ShieldCheck, Search } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useEffect, useState } from 'react'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
+import { useEffect } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 
 export function AppHeader() {
@@ -93,16 +94,23 @@ export function AppHeader() {
         </div>
 
         {/* Mini search bar - clickable, opens command palette */}
-        <button
-          onClick={() => window.dispatchEvent(new Event('open-command-palette'))}
-          className="hidden md:flex ml-4 items-center gap-2 h-8 px-3 rounded-lg border border-border/50 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all text-sm text-muted-foreground flex-1 max-w-xs group cursor-pointer"
-        >
-          <Search className="h-3.5 w-3.5" />
-          <span className="flex-1 text-left text-xs">Search policies, documents...</span>
-          <kbd className="pointer-events-none inline-flex h-5 select-none items-center rounded border bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground group-hover:text-foreground/70">
-            Ctrl+K
-          </kbd>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => window.dispatchEvent(new Event('open-command-palette'))}
+              className="hidden md:flex ml-4 items-center gap-2 h-8 px-3 rounded-lg border border-border/50 bg-muted/30 hover:bg-muted/60 hover:border-border transition-all text-sm text-muted-foreground flex-1 max-w-xs group cursor-pointer"
+            >
+              <Search className="h-3.5 w-3.5" />
+              <span className="flex-1 text-left text-xs">Search policies, documents...</span>
+              <kbd className="pointer-events-none inline-flex h-5 select-none items-center rounded border bg-muted/50 px-1.5 font-mono text-[10px] font-medium text-muted-foreground group-hover:text-foreground/70">
+                Ctrl+K
+              </kbd>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            Search policies, documents, and more (Ctrl+K)
+          </TooltipContent>
+        </Tooltip>
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* Theme toggle */}
@@ -119,10 +127,18 @@ export function AppHeader() {
           {/* Notifications bell */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-lg" aria-label={`Notifications, ${unreadCount} unread`}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'relative h-8 w-8 rounded-lg transition-transform duration-200 hover:scale-110 active:scale-95',
+                  unreadCount > 0 && 'pulse-ring'
+                )}
+                aria-label={`Notifications, ${unreadCount} unread`}
+              >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 flex items-center justify-center rounded-full bg-destructive text-white text-[9px] font-bold px-1">
+                  <span className="absolute -top-0.5 -right-0.5 h-4 min-w-4 flex items-center justify-center rounded-full bg-destructive text-white text-[9px] font-bold px-1 animate-[pulse-ring_1.5s_ease-out_infinite]">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
@@ -148,7 +164,10 @@ export function AppHeader() {
                   notifications.map((n: Record<string, unknown>) => (
                     <DropdownMenuItem
                       key={n.id}
-                      className={`flex flex-col items-start gap-1 p-3 cursor-pointer transition-colors ${(n.status as string) === 'UNREAD' ? 'bg-primary/5' : ''}`}
+                      className={cn(
+                        'flex flex-col items-start gap-1 p-3 cursor-pointer transition-colors',
+                        (n.status as string) === 'UNREAD' ? 'bg-primary/5' : ''
+                      )}
                       onClick={() => {
                         markNotifRead(n.id as string)
                         setView('notifications')
@@ -158,7 +177,10 @@ export function AppHeader() {
                         {(n.status as string) === 'UNREAD' && (
                           <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
                         )}
-                        <span className={`text-sm truncate ${(n.status as string) === 'UNREAD' ? 'font-medium' : 'font-normal text-muted-foreground'}`}>{n.title as string}</span>
+                        <span className={cn(
+                          'text-sm truncate',
+                          (n.status as string) === 'UNREAD' ? 'font-medium' : 'font-normal text-muted-foreground'
+                        )}>{n.title as string}</span>
                       </div>
                       <span className="text-[11px] text-muted-foreground pl-4">
                         {n.sentAt
@@ -185,11 +207,21 @@ export function AppHeader() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="flex items-center gap-2 px-2 h-8 rounded-lg hover:bg-accent/60">
-                <Avatar className="h-7 w-7 ring-1 ring-border/50">
-                  <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
-                    {(user.name || user.email)?.slice(0, 2).toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative">
+                  <Avatar className="h-7 w-7 ring-1 ring-border/50">
+                    <AvatarFallback className="bg-primary/10 text-primary text-[11px] font-semibold">
+                      {(user.name || user.email)?.slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  {/* Role dot */}
+                  <span
+                    className={cn(
+                      'absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background',
+                      user.role === 'ADMIN' ? 'bg-emerald-500' : 'bg-amber-500'
+                    )}
+                    title={user.role || 'USER'}
+                  />
+                </div>
                 <span className="hidden md:inline text-sm max-w-[120px] truncate font-medium">{user.name || user.email}</span>
               </Button>
             </DropdownMenuTrigger>
@@ -212,6 +244,9 @@ export function AppHeader() {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Animated gradient line under header */}
+      <div className="h-[2px] bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
     </header>
   )
 }

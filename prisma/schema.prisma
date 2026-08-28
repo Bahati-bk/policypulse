@@ -86,15 +86,17 @@ model PolicyCategory {
 // ============ POLICIES & DOCUMENTS ============
 
 model Policy {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   title            String
   description      String?
-  policyType       String   @default("REGULATION") // ACT, REGULATION, GUIDELINE, POLICY, DIRECTIVE
-  jurisdiction     String   @default("Uganda")
+  policyType       String    @default("REGULATION") // ACT, REGULATION, GUIDELINE, POLICY, DIRECTIVE
+  jurisdiction     String    @default("Uganda")
   issuingAuthority String?
   categoryId       String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  effectiveDate    DateTime?
+  sourceUrl        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   category  PolicyCategory?  @relation(fields: [categoryId], references: [id])
   documents PolicyDocument[]
@@ -195,9 +197,11 @@ model ImpactAssessment {
 
 model Alert {
   id             String    @id @default(cuid())
-  changeId       String    @unique
+  changeId       String?   @unique
   title          String
   summary        String?
+  severity       String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  changeType     String    @default("CLARIFICATION") // NEW_POLICY, AMENDMENT, REPEAL, REVISION, RESTRUCTURING, CLARIFICATION
   whatChanged    String?
   whoIsAffected  String?
   whatToDo       String?
@@ -208,7 +212,7 @@ model Alert {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  change        PolicyChange       @relation(fields: [changeId], references: [id])
+  change        PolicyChange?       @relation(fields: [changeId], references: [id])
   approver      User?              @relation("AlertApprover", fields: [approvedBy], references: [id])
   notifications AlertNotification[]
   userNotifs    UserNotification[]

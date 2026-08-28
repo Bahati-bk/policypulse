@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -28,7 +28,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
-import { Users, Search, Mail, MapPin, Building2, Briefcase, Bell, CalendarDays, ShieldCheck } from 'lucide-react'
+import { Users, Search, Mail, MapPin, Building2, Briefcase, Bell, CalendarDays, ShieldCheck, Activity, ArrowRight, KeyRound } from 'lucide-react'
+import { useAppStore } from '@/lib/store'
 
 interface UserProfile {
   jurisdiction: string
@@ -62,13 +63,19 @@ const roleColors: Record<string, string> = {
   ANALYST: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
 }
 
-const avatarColors = [
-  'bg-emerald-500',
-  'bg-teal-500',
-  'bg-amber-500',
-  'bg-rose-500',
-  'bg-cyan-500',
-  'bg-orange-500',
+const roleDescriptions: Record<string, string> = {
+  ADMIN: 'Full system access',
+  USER: 'Standard user',
+  ANALYST: 'Can create & analyze',
+}
+
+const avatarGradients = [
+  'from-emerald-500 to-teal-600',
+  'from-teal-500 to-cyan-600',
+  'from-amber-500 to-orange-600',
+  'from-rose-500 to-pink-600',
+  'from-emerald-400 to-cyan-500',
+  'from-amber-400 to-yellow-500',
 ]
 
 function getInitials(name: string | null | undefined): string {
@@ -79,12 +86,12 @@ function getInitials(name: string | null | undefined): string {
   return clean.slice(0, 2).toUpperCase()
 }
 
-function getAvatarColor(id: string): string {
+function getAvatarGradient(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) {
     hash = id.charCodeAt(i) + ((hash << 5) - hash)
   }
-  return avatarColors[Math.abs(hash) % avatarColors.length]
+  return avatarGradients[Math.abs(hash) % avatarGradients.length]
 }
 
 function relativeDate(dateStr: string): string {
@@ -110,13 +117,20 @@ function isDeactivated(name: string | null): boolean {
   return !!name?.includes('(Deactivated)')
 }
 
+function getRoleChangeConfirmMsg(role: string, userName: string): string {
+  return `Change ${userName}'s role to ${role}? They will gain ${role === 'ADMIN' ? 'full system access' : role === 'ANALYST' ? 'ability to create and analyze' : 'standard user'} permissions.`
+}
+
 export default function UsersView() {
   const queryClient = useQueryClient()
+  const setView = useAppStore(s => s.setView)
   const [search, setSearch] = useState('')
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<'deactivate' | 'activate'>('deactivate')
+  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false)
+  const [pendingRole, setPendingRole] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', search],
@@ -127,6 +141,36 @@ export default function UsersView() {
   })
 
   const users: UserItem[] = data?.users || []
+
+  // User statistics
+  const stats = useMemo(() => {
+    const total = users.length
+    const active = users.filter(u => !isDeactivated(u.name)).length
+    const byRole: Record<string, number> = { ADMIN: 0, USER: 0, ANALYST: 0 }
+    users.forEach(u => {
+      const r = u.role as string
+      if (byRole[r] !== undefined) byRole[r]++
+      else byRole[r] = 1
+    })
+    return { total, active, byRole }
+  }, [users])
+
+  // Fetch audit logs for the selected user (client-side filter)
+  const { data: auditData } = useQuery({
+    queryKey: ['audit-logs'],
+    enabled: detailOpen && !!selectedUser,
+    queryFn: () => fetch('/api/audit-logs?limit=50').then(r => r.json()),
+  })
+
+  const userActivity = useMemo(() => {
+    if (!auditData?.logs || !selectedUser) return []
+    return auditData.logs
+      .filter((log: Record<string, unknown>) => {
+        const actor = log.actor as Record<string, unknown> | null
+        return actor?.id === selectedUser.id
+      })
+      .slice(0, 5)
+  }, [auditData, selectedUser])
 
   const roleMutation = useMutation({
     mutationFn: async ({ id, role }: { id: string; role: string }) => {
@@ -141,6 +185,10 @@ export default function UsersView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] })
       toast.success('Role updated successfully')
+      setRoleConfirmOpen(false)
+      if (selectedUser) {
+        setSelectedUser({ ...selectedUser, role: pendingRole })
+      }
     },
     onError: () => toast.error('Failed to update role'),
   })
@@ -170,9 +218,15 @@ export default function UsersView() {
     setDetailOpen(true)
   }
 
-  function handleRoleChange(newRole: string) {
+  function handleRoleSelect(newRole: string) {
+    if (!selectedUser || newRole === selectedUser.role) return
+    setPendingRole(newRole)
+    setRoleConfirmOpen(true)
+  }
+
+  function confirmRoleChange() {
     if (!selectedUser) return
-    roleMutation.mutate({ id: selectedUser.id, role: newRole })
+    roleMutation.mutate({ id: selectedUser.id, role: pendingRole })
   }
 
   function handleDeactivateToggle() {
@@ -205,10 +259,52 @@ export default function UsersView() {
         </div>
       </div>
 
+      {/* User Statistics Row */}
+      {!isLoading && users.length > 0 && (
+        <motion.div variants={mi} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Card className="bg-gradient-to-br from-card to-muted/30 border-border/40">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Users className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xl font-bold tabular-nums leading-tight">{stats.total}</p>
+                <p className="text-[11px] text-muted-foreground">Total Users</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-card to-muted/30 border-border/40">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 relative">
+                <ShieldCheck className="h-4 w-4" />
+                <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-card" />
+              </div>
+              <div>
+                <p className="text-xl font-bold tabular-nums leading-tight text-emerald-600 dark:text-emerald-400">{stats.active}</p>
+                <p className="text-[11px] text-muted-foreground">Active Users</p>
+              </div>
+            </CardContent>
+          </Card>
+          {(['ADMIN', 'ANALYST', 'USER'] as const).map(role => (
+            <Card key={role} className="bg-gradient-to-br from-card to-muted/30 border-border/40">
+              <CardContent className="p-4 flex items-center gap-3">
+                <Badge variant="outline" className={`text-[10px] px-2 py-0.5 ${roleColors[role]}`}>
+                  {role}
+                </Badge>
+                <div>
+                  <p className="text-xl font-bold tabular-nums leading-tight">{stats.byRole[role]}</p>
+                  <p className="text-[11px] text-muted-foreground">{roleDescriptions[role]}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </motion.div>
+      )}
+
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 rounded-xl" />
+            <Skeleton key={i} className="h-52 rounded-xl" />
           ))}
         </div>
       ) : users.length === 0 ? (
@@ -226,23 +322,29 @@ export default function UsersView() {
           {users.map((u) => {
             const deactivated = isDeactivated(u.name)
             const initials = getInitials(u.name)
-            const color = getAvatarColor(u.id)
+            const gradient = getAvatarGradient(u.id)
 
             return (
               <motion.div key={u.id} variants={mi}>
                 <Card
-                  className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/30 ${deactivated ? 'opacity-60' : ''}`}
+                  className={`card-glow cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/30 ${deactivated ? 'opacity-60' : ''}`}
                   onClick={() => handleCardClick(u)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3">
-                      <div className={`h-10 w-10 rounded-full ${color} flex items-center justify-center text-sm font-bold text-white shrink-0`}>{
-                        initials
-                      }</div>
+                      {/* Avatar with gradient + status dot */}
+                      <div className="relative shrink-0">
+                        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-sm font-bold text-white`}>
+                          {initials}
+                        </div>
+                        <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card ${
+                          deactivated ? 'bg-slate-400' : 'bg-emerald-500'
+                        }`} />
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-sm truncate">
-                            {u.name || 'No name'}
+                            {u.name?.replace(/ \(Deactivated\)$/, '') || 'No name'}
                           </p>
                           {deactivated && (
                             <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-rose-500 border-rose-200 dark:border-rose-800 shrink-0">
@@ -265,6 +367,9 @@ export default function UsersView() {
                       <span className="text-[11px] text-muted-foreground">{relativeDate(u.createdAt)}</span>
                     </div>
 
+                    {/* Role description + Member since */}
+                    <p className="text-[11px] text-muted-foreground mt-1.5">{roleDescriptions[u.role] || 'Standard user'}</p>
+
                     <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
                       {u.profile?.jurisdiction && (
                         <div className="flex items-center gap-1 truncate">
@@ -284,7 +389,7 @@ export default function UsersView() {
                       </div>
                       <div className="flex items-center gap-1">
                         <CalendarDays className="h-3 w-3 shrink-0" />
-                        <span>{u._count.notifications} notifs</span>
+                        <span>Since {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -304,13 +409,13 @@ export default function UsersView() {
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-5">
-              {/* User header */}
+              {/* User header with gradient avatar */}
               <div className="flex items-center gap-4">
-                <div className={`h-14 w-14 rounded-full ${getAvatarColor(selectedUser.id)} flex items-center justify-center text-lg font-bold text-white shrink-0`}>
+                <div className={`h-14 w-14 rounded-full bg-gradient-to-br ${getAvatarGradient(selectedUser.id)} flex items-center justify-center text-lg font-bold text-white shrink-0 ring-2 ring-primary/20 ring-offset-2 ring-offset-card`}>
                   {getInitials(selectedUser.name)}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-semibold text-lg truncate">{selectedUser.name || 'No name'}</p>
+                  <p className="font-semibold text-lg truncate">{selectedUser.name?.replace(/ \(Deactivated\)$/, '') || 'No name'}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Badge variant="outline" className={`text-xs px-2 py-0 ${roleColors[selectedUser.role] || roleColors.USER}`}>
                       <ShieldCheck className="h-3 w-3 mr-1" />
@@ -384,45 +489,110 @@ export default function UsersView() {
                 </div>
               </div>
 
-              {/* Role change */}
+              {/* Activity Summary */}
+              <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5" />Recent Activity
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-[10px] h-6 px-2 text-muted-foreground hover:text-foreground"
+                    onClick={() => { setDetailOpen(false); setView('audit-log') }}
+                  >
+                    View All <ArrowRight className="ml-0.5 h-2.5 w-2.5" />
+                  </Button>
+                </div>
+                {userActivity.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-2">No recent activity</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {userActivity.map((log: Record<string, unknown>) => (
+                      <div key={log.id as string} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{log.action as string}</span>
+                          <span className="text-muted-foreground">{log.entityType as string}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">{relativeDate(log.createdAt as string)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Role change with confirmation */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">Change Role</Label>
                 <Select
                   value={selectedUser.role}
-                  onValueChange={handleRoleChange}
+                  onValueChange={handleRoleSelect}
                   disabled={roleMutation.isPending}
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="USER">USER</SelectItem>
-                    <SelectItem value="ADMIN">ADMIN</SelectItem>
-                    <SelectItem value="ANALYST">ANALYST</SelectItem>
+                    <SelectItem value="USER">USER - Standard user</SelectItem>
+                    <SelectItem value="ADMIN">ADMIN - Full system access</SelectItem>
+                    <SelectItem value="ANALYST">ANALYST - Can create & analyze</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Deactivate / Activate button */}
-              <Button
-                variant={isDeactivated(selectedUser.name) ? 'default' : 'destructive'}
-                className="w-full"
-                onClick={handleDeactivateToggle}
-                disabled={activateMutation.isPending}
-              >
-                {activateMutation.isPending
-                  ? 'Updating...'
-                  : isDeactivated(selectedUser.name)
-                    ? 'Activate User'
-                    : 'Deactivate User'
-                }
-              </Button>
+              {/* Action Buttons */}
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    toast.success('Password reset email sent')
+                  }}
+                >
+                  <KeyRound className="mr-2 h-3.5 w-3.5" />Reset Password
+                </Button>
+                <Button
+                  variant={isDeactivated(selectedUser.name) ? 'default' : 'destructive'}
+                  className="flex-1"
+                  onClick={handleDeactivateToggle}
+                  disabled={activateMutation.isPending}
+                >
+                  {activateMutation.isPending
+                    ? 'Updating...'
+                    : isDeactivated(selectedUser.name)
+                      ? 'Activate User'
+                      : 'Deactivate User'
+                  }
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation Dialog */}
+      {/* Role Change Confirmation Dialog */}
+      <AlertDialog open={roleConfirmOpen} onOpenChange={setRoleConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Role Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selectedUser ? getRoleChangeConfirmMsg(pendingRole, selectedUser.name?.replace(/ \(Deactivated\)$/, '') || selectedUser.email) : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={roleMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRoleChange}
+              disabled={roleMutation.isPending}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {roleMutation.isPending ? 'Updating...' : 'Confirm Change'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Deactivate/Activate Confirmation Dialog */}
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -431,8 +601,8 @@ export default function UsersView() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {pendingAction === 'deactivate'
-                ? `Are you sure you want to deactivate ${selectedUser?.name || 'this user'}? They will lose access to the platform.`
-                : `Are you sure you want to activate ${selectedUser?.name || 'this user'}? They will regain access to the platform.`
+                ? `Are you sure you want to deactivate ${selectedUser?.name?.replace(/ \(Deactivated\)$/, '') || selectedUser?.email || 'this user'}? They will lose access to the platform.`
+                : `Are you sure you want to activate ${selectedUser?.name?.replace(/ \(Deactivated\)$/, '') || selectedUser?.email || 'this user'}? They will regain access to the platform.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -19,6 +19,7 @@ import ProfileView from '@/components/views/ProfileView'
 import CategoriesView from '@/components/views/CategoriesView'
 import AuditLogView from '@/components/views/AuditLogView'
 import UsersView from '@/components/views/UsersView'
+import SettingsView from '@/components/views/SettingsView'
 import CommandPalette from '@/components/CommandPalette'
 import KeyboardShortcutsHelp from '@/components/KeyboardShortcutsHelp'
 import GPrefixHint from '@/components/GPrefixHint'
@@ -39,6 +40,7 @@ function AppContent() {
     categories: user?.role === 'ADMIN' ? <CategoriesView /> : <DashboardView />,
     'audit-log': user?.role === 'ADMIN' ? <AuditLogView /> : <DashboardView />,
     users: user?.role === 'ADMIN' ? <UsersView /> : <DashboardView />,
+    settings: <SettingsView />,
   }
 
   return (

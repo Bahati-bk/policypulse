@@ -12,6 +12,7 @@ type ViewType =
   | 'audit-log'
   | 'users'
   | 'auth'
+  | 'settings'
 
 interface AppState {
   currentView: ViewType
