@@ -309,9 +309,12 @@ Section 8: Minimum Wage
     },
   })
 
-  // Create sample changes for the comparison
-  const change1 = await db.policyChange.create({
-    data: {
+  // Create sample changes for the comparison (use upsert with deterministic IDs)
+  const change1 = await db.policyChange.upsert({
+    where: { id: 'change-wht-rate' },
+    update: {},
+    create: {
+      id: 'change-wht-rate',
       comparisonId: comparison.id,
       changeType: 'MODIFIED',
       title: 'Withholding tax rate reduced from 6% to 5%',
@@ -323,8 +326,11 @@ Section 8: Minimum Wage
     },
   })
 
-  const change2 = await db.policyChange.create({
-    data: {
+  const change2 = await db.policyChange.upsert({
+    where: { id: 'change-digital-fees' },
+    update: {},
+    create: {
+      id: 'change-digital-fees',
       comparisonId: comparison.id,
       changeType: 'ADDED',
       title: 'Digital service fees included in specified payments',
@@ -336,8 +342,11 @@ Section 8: Minimum Wage
     },
   })
 
-  const change3 = await db.policyChange.create({
-    data: {
+  const change3 = await db.policyChange.upsert({
+    where: { id: 'change-remittance-deadline' },
+    update: {},
+    create: {
+      id: 'change-remittance-deadline',
       comparisonId: comparison.id,
       changeType: 'MODIFIED',
       title: 'Remittance deadline shortened from 15 to 7 days',
@@ -349,8 +358,11 @@ Section 8: Minimum Wage
     },
   })
 
-  const change4 = await db.policyChange.create({
-    data: {
+  const change4 = await db.policyChange.upsert({
+    where: { id: 'change-penalty-increase' },
+    update: {},
+    create: {
+      id: 'change-penalty-increase',
       comparisonId: comparison.id,
       changeType: 'MODIFIED',
       title: 'Penalty for non-compliance increased',
@@ -362,8 +374,11 @@ Section 8: Minimum Wage
     },
   })
 
-  const change5 = await db.policyChange.create({
-    data: {
+  const change5 = await db.policyChange.upsert({
+    where: { id: 'change-sme-exemption' },
+    update: {},
+    create: {
+      id: 'change-sme-exemption',
       comparisonId: comparison.id,
       changeType: 'ADDED',
       title: 'New small business exemption for withholding tax',
@@ -374,9 +389,11 @@ Section 8: Minimum Wage
     },
   })
 
-  // Create impact assessments
-  await db.impactAssessment.create({
-    data: {
+  // Create impact assessments (upsert)
+  await db.impactAssessment.upsert({
+    where: { changeId: change2.id },
+    update: {},
+    create: {
       changeId: change2.id,
       severity: 'HIGH',
       rationale: 'Digital service fees being added to withholding tax obligations affects all businesses providing or receiving digital services. This is a significant expansion of the tax base.',
@@ -428,9 +445,12 @@ Section 8: Minimum Wage
     },
   })
 
-  // Create notifications for regular user
-  await db.userNotification.create({
-    data: {
+  // Create notifications for regular user (upsert with deterministic IDs)
+  await db.userNotification.upsert({
+    where: { id: 'notif-digital-fees' },
+    update: {},
+    create: {
+      id: 'notif-digital-fees',
       userId: regularUser.id,
       alertId: alert.id,
       title: 'New Tax Policy Change: Digital Service Fees',
@@ -441,8 +461,11 @@ Section 8: Minimum Wage
     },
   })
 
-  await db.userNotification.create({
-    data: {
+  await db.userNotification.upsert({
+    where: { id: 'notif-penalty-increase' },
+    update: {},
+    create: {
+      id: 'notif-penalty-increase',
       userId: regularUser.id,
       alertId: alert.id,
       title: 'Penalty Increase for Tax Non-Compliance',
@@ -453,16 +476,22 @@ Section 8: Minimum Wage
     },
   })
 
-  // Create source references
-  await db.sourceReference.create({
-    data: {
+  // Create source references (upsert)
+  await db.sourceReference.upsert({
+    where: { id: 'src-ref-digital-fees' },
+    update: {},
+    create: {
+      id: 'src-ref-digital-fees',
       changeId: change2.id,
       sectionTitle: 'Section 118(2)',
       quotedText: 'management fees, professional fees, royalties, dividends, interest, commissions, and digital service fees',
     },
   })
 
-  // Create audit logs
+  // Create audit logs (delete old seed logs first to avoid duplicates)
+  await db.auditLog.deleteMany({
+    where: { action: 'SEED' },
+  })
   await db.auditLog.createMany({
     data: [
       { actorUserId: admin.id, action: 'SEED', entityType: 'System', entityId: 'seed', metadata: JSON.stringify({ message: 'Database seeded with initial data' }) },
@@ -478,9 +507,11 @@ Section 8: Minimum Wage
     ],
   })
 
-  // Create an AI analysis run record
-  await db.aIAnalysisRun.create({
-    data: {
+  // Create an AI analysis run record (upsert)
+  await db.aIAnalysisRun.upsert({
+    where: { id: 'ai-run-income-tax' },
+    update: {},
+    create: {
       comparisonId: comparison.id,
       provider: 'z-ai-sdk',
       model: 'default',

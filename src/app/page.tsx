@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useAppStore, ViewType } from '@/lib/store'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 import { AppSidebar } from '@/components/layout/AppSidebar'
 import { AppHeader } from '@/components/layout/AppHeader'
 import AppFooter from '@/components/layout/AppFooter'
@@ -17,7 +18,10 @@ import NotificationsView from '@/components/views/NotificationsView'
 import ProfileView from '@/components/views/ProfileView'
 import CategoriesView from '@/components/views/CategoriesView'
 import AuditLogView from '@/components/views/AuditLogView'
+import UsersView from '@/components/views/UsersView'
 import CommandPalette from '@/components/CommandPalette'
+import KeyboardShortcutsHelp from '@/components/KeyboardShortcutsHelp'
+import GPrefixHint from '@/components/GPrefixHint'
 
 function AppContent() {
   const currentView = useAppStore(s => s.currentView)
@@ -34,6 +38,7 @@ function AppContent() {
     profile: <ProfileView />,
     categories: user?.role === 'ADMIN' ? <CategoriesView /> : <DashboardView />,
     'audit-log': user?.role === 'ADMIN' ? <AuditLogView /> : <DashboardView />,
+    users: user?.role === 'ADMIN' ? <UsersView /> : <DashboardView />,
   }
 
   return (
@@ -54,6 +59,7 @@ function AppContent() {
 }
 
 export default function Home() {
+  const { gHintVisible, hints } = useKeyboardShortcuts()
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
@@ -74,6 +80,8 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto scrollbar-thin">
               <AppContent />
               <CommandPalette />
+              <KeyboardShortcutsHelp />
+              <GPrefixHint visible={gHintVisible} hints={hints} />
             </div>
             <AppFooter />
           </div>

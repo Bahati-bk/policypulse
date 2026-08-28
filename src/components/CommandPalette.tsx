@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Search,
   Inbox,
+  Users,
 } from 'lucide-react'
 import { useAppStore, type ViewType } from '@/lib/store'
 import {
@@ -63,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   { view: 'profile', label: 'Profile', icon: User },
   { view: 'categories', label: 'Categories', icon: Tags, adminOnly: true },
   { view: 'audit-log', label: 'Audit Log', icon: ClipboardList, adminOnly: true },
+  { view: 'users', label: 'Users', icon: Users, adminOnly: true },
 ]
 
 const VIEW_LABELS: Record<ViewType, string> = {
@@ -75,6 +77,7 @@ const VIEW_LABELS: Record<ViewType, string> = {
   profile: 'Profile',
   categories: 'Categories',
   'audit-log': 'Audit Log',
+  users: 'Users',
   auth: 'Auth',
 }
 
@@ -136,6 +139,13 @@ export default function CommandPalette() {
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Listen for 'open-command-palette' custom event
+  useEffect(() => {
+    const handleOpen = () => setOpen(true)
+    window.addEventListener('open-command-palette', handleOpen)
+    return () => window.removeEventListener('open-command-palette', handleOpen)
   }, [])
 
   // Fetch documents and policies once when palette first opens

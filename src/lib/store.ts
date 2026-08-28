@@ -10,6 +10,7 @@ type ViewType =
   | 'profile'
   | 'categories'
   | 'audit-log'
+  | 'users'
   | 'auth'
 
 interface AppState {
