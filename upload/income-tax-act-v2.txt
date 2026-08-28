@@ -1,0 +1,10 @@
+INCOME TAX ACT (CHAPTER 340)
+
+PART VI - WITHHOLDING TAX
+
+Section 118: Withholding tax on payments to residents
+(1) Every person who makes a payment of a specified nature to a resident shall withhold tax at the rate of five percent of the gross amount of the payment.
+(2) The specified payments include: management fees, professional fees, royalties, dividends, interest, commissions, and digital service fees.
+(3) The tax withheld under this section shall be remitted to the Commissioner within seven days after the end of the month in which the withholding occurred.
+(4) Any person who fails to withhold tax as required shall be liable to pay the tax and a penalty equal to twice the amount of tax not withheld.
+(5) Small businesses with annual turnover below fifty million Uganda Shillings are exempt from withholding tax obligations under this section.

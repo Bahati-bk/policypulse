@@ -1,0 +1,6 @@
+DATA PROTECTION AND PRIVACY ACT
+
+Section 23: Registration of Data Controllers
+(1) Every data controller shall register with the National Data Protection Authority within ninety days of commencement of operations.
+(2) The registration shall include the categories of personal data processed, the purposes of processing, and the data subjects affected.
+(3) Annual renewal of registration is required.

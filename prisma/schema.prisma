@@ -1,0 +1,289 @@
+// PolicyPulse Prisma Schema
+// Legal and Policy Change Intelligence Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ AUTH & USERS ============
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  phone          String?
+  passwordHash   String?
+  role           String    @default("USER") // USER, ADMIN, ANALYST, SUPER_ADMIN
+  emailVerifiedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  profile        UserProfile?
+  sectors        UserSector[]
+  subscriptions  Subscription[]
+  notifications  UserNotification[]  @relation("UserNotifs")
+  auditLogs      AuditLog[]
+  comparisons    DocumentComparison[]
+  approvedAlerts Alert[]              @relation("AlertApprover")
+}
+
+model UserProfile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  jurisdiction     String   @default("Uganda")
+  businessType     String?
+  employmentStatus String?
+  interests        String   @default("[]") // JSON array
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============ SECTORS & CATEGORIES ============
+
+model Sector {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserSector[]
+}
+
+model UserSector {
+  id       String @id @default(cuid())
+  userId   String
+  sectorId String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sector Sector @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectorId])
+}
+
+model PolicyCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  policies Policy[]
+}
+
+// ============ POLICIES & DOCUMENTS ============
+
+model Policy {
+  id               String   @id @default(cuid())
+  title            String
+  description      String?
+  policyType       String   @default("REGULATION") // ACT, REGULATION, GUIDELINE, POLICY, DIRECTIVE
+  jurisdiction     String   @default("Uganda")
+  issuingAuthority String?
+  categoryId       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  category  PolicyCategory?  @relation(fields: [categoryId], references: [id])
+  documents PolicyDocument[]
+}
+
+model PolicyDocument {
+  id               String   @id @default(cuid())
+  policyId         String
+  version          String?
+  documentType     String   @default("PDF") // PDF, DOCX, TXT
+  storageKey       String?
+  fileName         String?
+  checksum         String?
+  sourceUrl        String?
+  publicationDate  DateTime?
+  effectiveDate    DateTime?
+  processingStatus String   @default("UPLOADED") // UPLOADED, VALIDATING, PROCESSING, READY, FAILED
+  processingError  String?
+  extractedText    String?   // Store extracted text for SQLite
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  policy      Policy               @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  comparisonsOld DocumentComparison[] @relation("ComparisonOld")
+  comparisonsNew DocumentComparison[] @relation("ComparisonNew")
+}
+
+// ============ COMPARISONS ============
+
+model DocumentComparison {
+  id             String    @id @default(cuid())
+  oldDocumentId  String
+  newDocumentId  String
+  status         String    @default("PENDING") // PENDING, COMPARING, ANALYZING, COMPLETED, FAILED
+  errorMessage   String?
+  createdBy      String?
+  completedAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  oldDocument  PolicyDocument @relation("ComparisonOld", fields: [oldDocumentId], references: [id])
+  newDocument  PolicyDocument @relation("ComparisonNew", fields: [newDocumentId], references: [id])
+  creator      User?         @relation(fields: [createdBy], references: [id])
+  changes      PolicyChange[]
+  analysisRuns AIAnalysisRun[]
+}
+
+// ============ CHANGES ============
+
+model PolicyChange {
+  id             String   @id @default(cuid())
+  comparisonId   String
+  changeType     String   // ADDED, REMOVED, MODIFIED
+  title          String
+  description    String?
+  oldText        String?
+  newText        String?
+  severity       String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  confidenceScore Float   @default(0.0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  comparison  DocumentComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+  references  SourceReference[]
+  assessment  ImpactAssessment?
+  alert       Alert?
+}
+
+model SourceReference {
+  id           String   @id @default(cuid())
+  changeId     String
+  documentId   String?
+  pageNumber   Int?
+  sectionTitle String?
+  quotedText   String?
+  createdAt    DateTime @default(now())
+
+  change PolicyChange @relation(fields: [changeId], references: [id], onDelete: Cascade)
+}
+
+model ImpactAssessment {
+  id             String   @id @default(cuid())
+  changeId       String   @unique
+  severity       String   @default("MEDIUM")
+  rationale      String?
+  actionRequired Boolean  @default(false)
+  deadline       String?
+  confidenceScore Float   @default(0.0)
+  affectedGroups String   @default("[]") // JSON array of AffectedGroup
+  actions        String   @default("[]") // JSON array of ActionItem
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  change PolicyChange @relation(fields: [changeId], references: [id], onDelete: Cascade)
+}
+
+// ============ ALERTS ============
+
+model Alert {
+  id             String    @id @default(cuid())
+  changeId       String    @unique
+  title          String
+  summary        String?
+  whatChanged    String?
+  whoIsAffected  String?
+  whatToDo       String?
+  status         String    @default("DRAFT") // DRAFT, PENDING_REVIEW, APPROVED, REJECTED, SENT, ARCHIVED
+  approvedBy     String?
+  approvedAt     DateTime?
+  rejectionReason String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  change        PolicyChange       @relation(fields: [changeId], references: [id])
+  approver      User?              @relation("AlertApprover", fields: [approvedBy], references: [id])
+  notifications AlertNotification[]
+  userNotifs    UserNotification[]
+}
+
+// ============ SUBSCRIPTIONS & NOTIFICATIONS ============
+
+model Subscription {
+  id               String   @id @default(cuid())
+  userId           String
+  subscriptionType String   // SECTOR, CATEGORY, POLICY
+  referenceId      String   // ID of the sector/category/policy
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserNotification {
+  id        String    @id @default(cuid())
+  userId    String
+  alertId   String?
+  title     String
+  message   String?
+  channel   String    @default("WEB") // WEB, SMS, USSD
+  status    String    @default("UNREAD") // UNREAD, READ
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user  User   @relation("UserNotifs", fields: [userId], references: [id], onDelete: Cascade)
+  alert Alert? @relation(fields: [alertId], references: [id])
+}
+
+model AlertNotification {
+  id             String   @id @default(cuid())
+  alertId        String
+  channel        String   @default("WEB") // WEB, SMS, USSD
+  status         String   @default("PENDING") // PENDING, SENT, FAILED
+  failureReason  String?
+  sentAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  alert Alert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+}
+
+// ============ AI ANALYSIS ============
+
+model AIAnalysisRun {
+  id              String   @id @default(cuid())
+  comparisonId    String
+  provider        String   @default("z-ai-sdk")
+  model           String?
+  promptVersion   String?
+  status          String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  inputHash       String?
+  output          String?  // JSON output from AI
+  errorMessage    String?
+  confidenceScore Float    @default(0.0)
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  comparison DocumentComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+}
+
+// ============ AUDIT ============
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorUserId String?
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   String?  // JSON
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id])
+}
