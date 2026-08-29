@@ -519,3 +519,37 @@ Stage Summary:
 - App is fully running and accessible in Preview Panel
 - Known limitation: server requires foreground keepalive in sandbox (dies between bash calls otherwise)
 - All features from previous sessions intact: contacts CRUD, auto-SMS, comparison creation, USSD alerts
+
+---
+Task ID: 16
+Agent: Main
+Task: Fix USSD API returning "Response does not start with CON or END" with HTML
+
+Work Log:
+- Diagnosed root cause: Africa's Talking USSD gateway POSTs to callback URL, but no callback endpoint existed → Next.js returned HTML 404 page
+- Created /api/ussd/callback/route.ts with full USSD menu system:
+  - POST handler: parses form-urlencoded (sessionId, serviceCode, phoneNumber, text), returns text/plain with CON/END prefix
+  - GET handler: returns END message for direct browser access
+  - Error handler: even exceptions return proper "END" text/plain (never HTML)
+  - Main menu: View Alerts, My Subscriptions, Recent Policy Changes, Unsubscribe
+  - Multi-step flow with *-separated input parsing
+  - USSD self-subscription: user can subscribe by entering name via USSD
+  - Unsubscribe flow with confirmation
+- Fixed PolicyDocument model reference (was using non-existent `db.document`, changed to `db.policyDocument`)
+- Fixed unsubscribe "Keep Active" option (4*2) — was missing handler
+- Rewrote /api/ussd/send-alert/route.ts: now actually calls Africa's Talking SMS API when AT_API_KEY is configured, falls back to queueing otherwise
+- Rewrote src/lib/sms.ts: autoSendSmsAlert and queueSmsToNumbers now attempt live delivery via Africa's Talking, track SENT/FAILED status
+
+Verification Results:
+- ESLint: Zero errors
+- POST /api/ussd/callback returns "CON Welcome to PolicyPulse..." with Content-Type: text/plain; charset=utf-8
+- GET /api/ussd/callback returns "END PolicyPulse USSD Service..." with Content-Type: text/plain; charset=utf-8
+- Full menu flow tested: main menu → view alerts (empty) → recent policies (3 results) → unsubscribe → keep active
+- No HTML in any USSD response
+
+Stage Summary:
+- Created 1 new API route: POST/GET /api/ussd/callback (USSD gateway endpoint)
+- Rewrote 2 files: /api/ussd/send-alert/route.ts, src/lib/sms.ts
+- USSD callback URL: /api/ussd/callback (configure in Africa's Talking dashboard)
+- SMS delivery: live via Africa's Talking when AT_API_KEY env var is set, queued otherwise
+- To enable live SMS: set AT_API_KEY and AT_USERNAME in .env

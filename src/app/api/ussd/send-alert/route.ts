@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 
+const SHORTCODE = '38417818' // Africa's Talking shortcode (without * and #)
+const AT_API_URL = 'https://api.africastalking.com/version1/messaging'
+
+// Read from env — user should set these
+function getAtCredentials() {
+  const username = process.env.AT_USERNAME || 'policypulse'
+  const apiKey = process.env.AT_API_KEY || ''
+  return { username, apiKey, configured: !!apiKey }
+}
+
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -33,8 +43,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Invalid phone number(s): ${invalidNumbers.slice(0, 3).join(', ')}${invalidNumbers.length > 3 ? ` and ${invalidNumbers.length - 3} more` : ''}` }, { status: 400 })
   }
 
-  const SHORTCODE = '*384*17818#'
-
   // Normalize phone numbers to standard format
   const normalizedNumbers = phoneNumbers.map(p => {
     const cleaned = p.replace(/[\s\-+]/g, '')
@@ -42,26 +50,77 @@ export async function POST(req: NextRequest) {
     return cleaned
   })
 
-  // In production, this would call Africa's Talking API:
-  // POST https://api.africastalking.com/version1/messaging
-  // Headers: apikey: <YOUR_API_KEY>, Content-Type: application/x-www-form-urlencoded
-  // Body: username=<USERNAME>&to=<phone>&message=<message>&from=<shortcode>
+  const credentials = getAtCredentials()
+  const truncatedMsg = message.trim().slice(0, 160) // SMS limit
 
-  // For now, store in database and return success
-  const ussdMessages = []
+  const results: { phone: string; status: string; error?: string; messageId?: string }[] = []
+
   for (const phone of normalizedNumbers) {
+    let status: 'SENT' | 'FAILED' | 'QUEUED' = 'QUEUED'
+    let errorMessage: string | null = null
+    let atMessageId: string | null = null
+
+    if (credentials.configured) {
+      // Actually send via Africa's Talking SMS API
+      try {
+        const params = new URLSearchParams({
+          username: credentials.username,
+          to: '+' + phone,
+          message: truncatedMsg,
+          from: SHORTCODE,
+        })
+
+        const atResponse = await fetch(AT_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'apiKey': credentials.apiKey,
+          },
+          body: params.toString(),
+        })
+
+        const atData = await atResponse.json()
+
+        if (atResponse.ok && atData?.SMSMessageData?.Recipients) {
+          const recipient = atData.SMSMessageData.Recipients[0]
+          if (recipient?.status === 'Success') {
+            status = 'SENT'
+            atMessageId = recipient.messageId
+          } else {
+            status = 'FAILED'
+            errorMessage = recipient?.status || 'Unknown error'
+          }
+        } else {
+          status = 'FAILED'
+          errorMessage = atData?.errorMessage || `HTTP ${atResponse.status}`
+        }
+      } catch (err) {
+        status = 'FAILED'
+        errorMessage = err instanceof Error ? err.message : 'Network error'
+      }
+    }
+
+    // Store in database
     const ussdMsg = await db.uSSDMessage.create({
       data: {
         alertId: alertId || null,
         phoneNumber: phone,
-        message: message.trim(),
-        shortcode: SHORTCODE,
-        status: 'QUEUED',
+        message: truncatedMsg,
+        shortcode: '*' + SHORTCODE.split('').join('*') + '#',
+        status,
         recipientCount: 1,
         sentById: user.id,
+        sentAt: status === 'SENT' ? new Date() : null,
+        errorMessage: errorMessage || null,
       },
     })
-    ussdMessages.push(ussdMsg)
+
+    results.push({
+      phone,
+      status,
+      error: errorMessage || undefined,
+      messageId: ussdMsg.id,
+    })
   }
 
   // Audit log
@@ -70,20 +129,31 @@ export async function POST(req: NextRequest) {
       actorUserId: user.id,
       action: 'USSD_SEND',
       entityType: 'USSDMessage',
-      entityId: ussdMessages[0]?.id || null,
       metadata: JSON.stringify({
         alertId: alertId || null,
         phoneCount: normalizedNumbers.length,
-        shortcode: SHORTCODE,
+        shortcode: '*384*17818#',
+        sentCount: results.filter(r => r.status === 'SENT').length,
+        failedCount: results.filter(r => r.status === 'FAILED').length,
+        queuedCount: results.filter(r => r.status === 'QUEUED').length,
+        liveApi: credentials.configured,
       }),
     },
   })
 
+  const sentCount = results.filter(r => r.status === 'SENT').length
+  const failedCount = results.filter(r => r.status === 'FAILED').length
+
   return NextResponse.json({
-    success: true,
+    success: sentCount > 0,
     messageCount: normalizedNumbers.length,
-    shortcode: SHORTCODE,
-    status: 'QUEUED',
-    note: 'Messages queued. In production, these would be sent via Africa\'s Talking API.',
+    sent: sentCount,
+    failed: failedCount,
+    queued: results.filter(r => r.status === 'QUEUED').length,
+    shortcode: '*384*17818#',
+    results,
+    note: credentials.configured
+      ? `Sent via Africa's Talking API. ${sentCount} delivered, ${failedCount} failed.`
+      : `API key not configured (AT_API_KEY). ${results.length} message(s) queued for later delivery.`,
   })
 }
