@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { BookOpen, Search, Filter, FileText, Calendar, Building2, Tag, Plus, Loader2 } from 'lucide-react'
+import { BookOpen, Search, Filter, FileText, Calendar, Building2, Tag, Plus, Loader2, Brain, ArrowRight, Shield, AlertTriangle, CheckCircle2, Lightbulb, Sparkles } from 'lucide-react'
+import { Progress } from '@/components/ui/progress'
 import { format } from 'date-fns'
 import { useAppStore } from '@/lib/store'
 import { safeArray } from '@/lib/safe-array'
@@ -78,6 +79,8 @@ export default function PoliciesView() {
   const [jurisdictionFilter, setJurisdictionFilter] = useState<string>('all')
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
+  const [aiAnalysis, setAiAnalysis] = useState<Record<string, unknown> | null>(null)
+  const [aiAnalyzing, setAiAnalyzing] = useState(false)
 
   // Form state for new policy
   const [formTitle, setFormTitle] = useState('')
@@ -106,6 +109,22 @@ export default function PoliciesView() {
     enabled: !!user,
   })
   const policies = safeArray<Policy>(policiesData)
+
+  const aiAnalysisMutation = useMutation({
+    mutationFn: async (policyId: string) => {
+      setAiAnalyzing(true)
+      setAiAnalysis(null)
+      const res = await fetch('/api/ai/policy-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policyId }),
+      })
+      if (!res.ok) throw new Error('Analysis failed')
+      return res.json()
+    },
+    onSuccess: (data) => { setAiAnalysis(data); setAiAnalyzing(false) },
+    onError: () => { toast.error('AI analysis failed'); setAiAnalyzing(false) },
+  })
 
   const { data: categoriesData } = useQuery<{ categories: Category[] }>({
     queryKey: ['categories'],
@@ -453,7 +472,7 @@ export default function PoliciesView() {
       )}
 
       {/* Policy Detail Dialog */}
-      <Dialog open={!!selectedPolicy} onOpenChange={(open) => { if (!open) setSelectedPolicy(null) }}>
+      <Dialog open={!!selectedPolicy} onOpenChange={(open) => { if (!open) { setSelectedPolicy(null); setAiAnalysis(null) } }}>
         <DialogContent className="max-w-2xl max-h-[80vh] pointer-events-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 pr-8">
@@ -540,6 +559,82 @@ export default function PoliciesView() {
                     </div>
                   </div>
                 )}
+
+                {/* AI Relevance Analysis */}
+                <div className="rounded-lg border border-primary/20 bg-gradient-to-br from-primary/5 to-teal-500/5 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Brain className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">AI Relevance Analysis</span>
+                      <Badge variant="secondary" className="text-[10px]">Deepseek</Badge>
+                    </div>
+                    {!aiAnalysis && !aiAnalyzing && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => { e.stopPropagation(); aiAnalysisMutation.mutate(selectedPolicy!.id) }}
+                      >
+                        <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                        Analyze Relevance
+                      </Button>
+                    )}
+                  </div>
+                  {aiAnalyzing && (
+                    <div className="flex items-center gap-3 py-6 justify-center">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">Analyzing policy relevance...</span>
+                    </div>
+                  )}
+                  {aiAnalysis && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`h-10 w-10 rounded-lg flex items-center justify-center text-sm font-bold ${
+                          (aiAnalysis.relevanceScore as number) >= 80 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400' :
+                          (aiAnalysis.relevanceScore as number) >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400' :
+                          'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400'
+                        }`}>
+                          {aiAnalysis.relevanceScore as number}
+                        </div>
+                        <div className="flex-1">
+                          <Progress value={aiAnalysis.relevanceScore as number} className="h-2" />
+                          <p className="text-xs text-muted-foreground mt-0.5">{aiAnalysis.relevanceLevel as string}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{aiAnalysis.summary as string}</p>
+                      {Array.isArray(aiAnalysis.complianceSteps) && (aiAnalysis.complianceSteps as string[]).length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold mb-1.5 flex items-center gap-1"><Shield className="h-3 w-3" /> Compliance Steps</p>
+                          <ol className="space-y-1">
+                            {(aiAnalysis.complianceSteps as string[]).slice(0, 4).map((step: string, i: number) => (
+                              <li key={i} className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                                <span className="h-4 w-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">{i + 1}</span>
+                                {step}
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+                      {Array.isArray(aiAnalysis.risks) && (aiAnalysis.risks as string[]).length > 0 && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="p-2 rounded-md bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800">
+                            <p className="text-[10px] font-semibold text-red-600 dark:text-red-400 mb-1">Risks</p>
+                            {(aiAnalysis.risks as string[]).slice(0, 2).map((r: string, i: number) => (
+                              <p key={i} className="text-[10px] text-red-600/80 dark:text-red-300/80">&bull; {r}</p>
+                            ))}
+                          </div>
+                          {Array.isArray(aiAnalysis.opportunities) && (aiAnalysis.opportunities as string[]).length > 0 && (
+                            <div className="p-2 rounded-md bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
+                              <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Opportunities</p>
+                              {(aiAnalysis.opportunities as string[]).slice(0, 2).map((o: string, i: number) => (
+                                <p key={i} className="text-[10px] text-emerald-600/80 dark:text-emerald-300/80">&bull; {o}</p>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {policyDetailDocuments.length === 0 && policyDetailData && (
                   <div className="flex justify-center py-4">

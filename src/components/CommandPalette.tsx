@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
+  Brain,
   ScrollText,
   FileText,
   GitCompareArrows,
@@ -57,6 +58,7 @@ interface FetchedPolicy {
 
 const NAV_ITEMS: NavItem[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { view: 'ai-insights', label: 'AI Insights', icon: Brain },
   { view: 'policies', label: 'Policies', icon: ScrollText },
   { view: 'documents', label: 'Documents', icon: FileText },
   { view: 'comparisons', label: 'Comparisons', icon: GitCompareArrows },
@@ -71,6 +73,7 @@ const NAV_ITEMS: NavItem[] = [
 
 const VIEW_LABELS: Record<ViewType, string> = {
   dashboard: 'Dashboard',
+  'ai-insights': 'AI Insights',
   policies: 'Policies',
   documents: 'Documents',
   comparisons: 'Comparisons',

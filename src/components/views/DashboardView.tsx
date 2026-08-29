@@ -12,7 +12,7 @@ import {
   FileText, GitCompare, Bell, Users, Upload, Plus, ArrowRight,
   Activity, BookOpen, ScrollText, TrendingUp,
   Zap, Clock, CheckCircle2, ShieldCheck, BarChart3, PieChart as PieChartIcon,
-  LineChart as LineChartIcon, ArrowUpRight,
+  LineChart as LineChartIcon, ArrowUpRight, Brain, Sparkles,
 } from 'lucide-react'
 import { formatDistanceToNow, format } from 'date-fns'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Area, AreaChart } from 'recharts'
@@ -507,6 +507,7 @@ export default function DashboardView() {
             </CardHeader>
             <CardContent className="p-4 pt-0 space-y-2">
               {[
+                { icon: <Brain className="h-4 w-4" />, label: 'AI Insights', view: 'ai-insights' as const, desc: 'Get personalized policy intelligence', highlight: true },
                 { icon: <Upload className="h-4 w-4" />, label: 'Upload Document', view: 'documents' as const, desc: 'Add a new policy document' },
                 { icon: <Plus className="h-4 w-4" />, label: 'New Comparison', view: 'comparisons' as const, desc: 'Compare document versions' },
                 { icon: <ArrowRight className="h-4 w-4" />, label: 'View Alerts', view: 'alerts' as const, desc: 'Review pending alerts' },
@@ -515,14 +516,14 @@ export default function DashboardView() {
               ].map(action => (
                 <Button
                   key={action.view}
-                  variant="outline"
-                  className="w-full justify-start hover:bg-accent/80 hover:border-primary/30 transition-all duration-200 h-auto py-3 group"
+                  variant={action.highlight ? 'default' : 'outline'}
+                  className={`w-full justify-start hover:bg-accent/80 hover:border-primary/30 transition-all duration-200 h-auto py-3 group ${action.highlight ? 'bg-gradient-to-r from-primary to-teal-600 hover:from-primary/90 hover:to-teal-600/90 text-primary-foreground border-0 shadow-sm shadow-primary/20' : ''}`}
                   onClick={() => setView(action.view)}
                 >
-                  <span className={`${action.view === 'alerts' ? 'text-rose-500' : 'text-primary'} group-hover:scale-110 transition-transform`}>{action.icon}</span>
+                  <span className={`${action.highlight ? 'text-primary-foreground' : action.view === 'alerts' ? 'text-rose-500' : 'text-primary'} group-hover:scale-110 transition-transform`}>{action.icon}</span>
                   <span className="ml-2 flex flex-col items-start">
-                    <span className="text-sm font-medium">{action.label}</span>
-                    <span className="text-[11px] text-muted-foreground font-normal">{action.desc}</span>
+                    <span className="text-sm font-medium flex items-center gap-1.5">{action.label}{action.highlight && <Sparkles className="h-3 w-3" />}</span>
+                    <span className={`text-[11px] font-normal ${action.highlight ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{action.desc}</span>
                   </span>
                   <ArrowUpRight className="ml-auto h-3.5 w-3.5 text-muted-foreground/0 group-hover:text-muted-foreground transition-all" />
                 </Button>

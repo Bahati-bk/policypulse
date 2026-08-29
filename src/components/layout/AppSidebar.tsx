@@ -4,7 +4,7 @@ import { useAppStore, ViewType } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LayoutDashboard, BookOpen, FileText, GitCompare, Bell, UserCog, Tags, ScrollText, ShieldCheck, X, Inbox, Users, Keyboard, Settings,
+  LayoutDashboard, Brain, BookOpen, FileText, GitCompare, Bell, UserCog, Tags, ScrollText, ShieldCheck, X, Inbox, Users, Keyboard, Settings,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -23,6 +23,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { view: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, section: 'main' },
+  { view: 'ai-insights', label: 'AI Insights', icon: <Brain className="h-4 w-4" />, section: 'main' },
   { view: 'policies', label: 'Policies', icon: <BookOpen className="h-4 w-4" />, section: 'main' },
   { view: 'documents', label: 'Documents', icon: <FileText className="h-4 w-4" />, section: 'main' },
   { view: 'comparisons', label: 'Comparisons', icon: <GitCompare className="h-4 w-4" />, section: 'main' },

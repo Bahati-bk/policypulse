@@ -305,3 +305,73 @@ The PolicyPulse platform is stable and fully functional:
 12. **Add PWA support** for offline access to cached policy documents
 13. **Server-side command palette search** for better performance with large datasets
 14. **Settings sync** across devices via backend API
+
+---
+Task ID: 12
+Agent: Main
+Task: Deepseek AI Integration — Personalized Policy Insights & Analysis
+
+Work Log:
+- Created `/src/lib/deepseek.ts` — Deepseek API service (OpenAI-compatible) with 4 functions: `deepseekChat`, `analyzePolicyRelevance`, `generatePersonalizedInsights`, `comparePoliciesAI`, `explainPolicyChange`
+- Created 4 API routes:
+  - `POST /api/ai/insights` — Generates personalized insights based on user profile, sectors, interests, and all policies
+  - `POST /api/ai/policy-analysis` — Analyzes a single policy's relevance to the user
+  - `POST /api/ai/explain-change` — Explains policy changes in plain language
+  - `POST /api/ai/compare-policies` — AI-powered comparison of two policies
+- Created `AIInsightsView.tsx` — Full AI Insights page with:
+  - Priority Alerts (HIGH/CRITICAL)
+  - Policy Recommendations with relevance scores
+  - Compliance Status checklist (COMPLIANT/ACTION_NEEDED/AT_RISK)
+  - Policy Trends (INCREASING/DECREASING/STABLE)
+  - Upcoming Deadlines
+  - Policy Relevance Analyzer tool (select policy → get personalized analysis)
+  - AI Policy Comparison tool (select 2 policies → AI compares them)
+- Added `ai-insights` ViewType to store, sidebar, page routing, command palette, keyboard shortcuts (g+i)
+- Added AI Relevance Analysis panel to PoliciesView detail dialog with:
+  - Relevance score (0-100) with progress bar
+  - Relevance level badge
+  - Summary, compliance steps, risks, opportunities
+- Added highlighted AI Insights quick action button to Dashboard
+- Re-seeded database with 25 Ugandan policies (verified all appear in document upload dropdown)
+
+Verification Results:
+- ESLint: Zero errors
+- AI Insights API: POST /api/ai/insights returns 200 in ~9s with personalized data
+- Policy Analysis API: POST /api/ai/policy-analysis returns 200 with relevance score, compliance steps, risks, opportunities
+- Agent-browser QA: All views render correctly, no console errors
+- Document upload dropdown: All 25 Ugandan policies visible and selectable
+- Sidebar navigation: AI Insights appears as 2nd item with Brain icon
+- Dashboard quick actions: AI Insights button with gradient styling
+
+Stage Summary:
+- Deepseek AI fully integrated for personalized policy intelligence
+- 4 new API routes, 1 new view, enhanced 2 existing views
+- User profile data (sectors, interests, business type) feeds into AI prompts for personalized results
+- AI Insights view is the primary hub for all AI-powered features
+- Individual policy AI analysis available from policy detail dialog
+
+## Current Project Status Assessment (post-AI integration)
+
+### Phase: AI-Powered Platform (v1.4.0)
+
+The PolicyPulse platform now has AI-powered personalized policy intelligence:
+- **13 views**: Dashboard, AI Insights, Policies, Documents, Comparisons, Alerts, Notifications, Users, Profile, Settings, Categories, Audit Log, Auth
+- **20+ API routes**: All previous + 4 new AI endpoints
+- **Deepseek AI integration**: Personalized insights, policy relevance analysis, policy comparison, change explanation
+- **25 Ugandan policies**: Comprehensive seed data covering tax, employment, data protection, environment, finance, health, technology, trade, governance, education, agriculture
+- **All previous features intact**: 12 views, auth, command palette, keyboard shortcuts, etc.
+
+### Unresolved Issues / Risks
+1. "Applications section" error: No dedicated "Applications" view exists in the codebase. User may have been referring to a different section (Alerts, Profile, or Comparisons). No error was found in any existing view during testing.
+2. Africa's Talking SMS integration: Webhook endpoints not yet created
+3. PDF/DOCX text extraction: Only TXT files auto-extract
+4. Settings persistence: Uses localStorage, not synced across devices
+
+### Priority Recommendations for Next Phase
+1. **Add PDF text extraction** (pdf-parse) and **DOCX extraction** (mammoth)
+2. **Add data import** (JSON/CSV upload for policies)
+3. **Add email notification delivery**
+4. **Implement SMS notification channel** (Africa's Talking SDK)
+5. **Add organization/team management**
+6. **Add API rate limiting**
+7. **Add automated tests**

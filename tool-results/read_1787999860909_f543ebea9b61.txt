@@ -1,0 +1,578 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useRef, useCallback } from 'react'
+     4→     4→import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+     5→     5→import { motion } from 'framer-motion'
+     6→     6→import { toast } from 'sonner'
+     7→     7→import { Card, CardContent } from '@/components/ui/card'
+     8→     8→import { Badge } from '@/components/ui/badge'
+     9→     9→import { Button } from '@/components/ui/button'
+    10→    10→import { Skeleton } from '@/components/ui/skeleton'
+    11→    11→import { Input } from '@/components/ui/input'
+    12→    12→import { Label } from '@/components/ui/label'
+    13→    13→import { Textarea } from '@/components/ui/textarea'
+    14→    14→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+    15→    15→import { ScrollArea } from '@/components/ui/scroll-area'
+    16→    16→import {
+    17→    17→  Select,
+    18→    18→  SelectContent,
+    19→    19→  SelectItem,
+    20→    20→  SelectTrigger,
+    21→    21→  SelectValue,
+    22→    22→} from '@/components/ui/select'
+    23→    23→import { FileText, Upload, Play, FolderOpen, Search, File, FileSpreadsheet, Loader2, LayoutGrid, List, X } from 'lucide-react'
+    24→    24→import { format } from 'date-fns'
+    25→    25→import { useAppStore } from '@/lib/store'
+    26→    26→import { safeArray } from '@/lib/safe-array'
+    27→    27→
+    28→    28→const statusColors: Record<string, string> = {
+    29→    29→  UPLOADED: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    30→    30→  VALIDATING: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+    31→    31→  PROCESSING: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400',
+    32→    32→  READY: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400',
+    33→    33→  FAILED: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
+    34→    34→}
+    35→    35→
+    36→    36→const statusIcons: Record<string, React.ReactNode> = {
+    37→    37→  UPLOADED: <FileText className="h-4 w-4 text-slate-400" />,
+    38→    38→  VALIDATING: <FileText className="h-4 w-4 text-amber-400" />,
+    39→    39→  PROCESSING: <Play className="h-4 w-4 text-amber-500 animate-pulse" />,
+    40→    40→  READY: <FileText className="h-4 w-4 text-emerald-500" />,
+    41→    41→  FAILED: <FileText className="h-4 w-4 text-red-500" />,
+    42→    42→}
+    43→    43→
+    44→    44→const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt']
+    45→    45→const ACCEPTED_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword', 'text/plain']
+    46→    46→
+    47→    47→function getFileIcon(fileName: string) {
+    48→    48→  const ext = fileName?.split('.').pop()?.toLowerCase()
+    49→    49→  if (ext === 'pdf') return <File className="h-4 w-4 text-rose-500" />
+    50→    50→  if (ext === 'docx' || ext === 'doc') return <FileSpreadsheet className="h-4 w-4 text-teal-500" />
+    51→    51→  if (ext === 'txt') return <FileText className="h-4 w-4 text-slate-500" />
+    52→    52→  return <FileText className="h-4 w-4 text-muted-foreground" />
+    53→    53→}
+    54→    54→
+    55→    55→function formatFileSize(bytes: number): string {
+    56→    56→  if (bytes < 1024) return bytes + ' B'
+    57→    57→  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    58→    58→  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+    59→    59→}
+    60→    60→
+    61→    61→const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
+    62→    62→const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
+    63→    63→
+    64→    64→interface PolicyOption {
+    65→    65→  id: string
+    66→    66→  title: string
+    67→    67→}
+    68→    68→
+    69→    69→export default function DocumentsView() {
+    70→    70→  const queryClient = useQueryClient()
+    71→    71→  const user = useAppStore((s) => s.user)
+    72→    72→  const [selectedDoc, setSelectedDoc] = useState<Record<string, unknown> | null>(null)
+    73→    73→  const [uploadOpen, setUploadOpen] = useState(false)
+    74→    74→  const [search, setSearch] = useState('')
+    75→    75→  const [statusFilter, setStatusFilter] = useState('')
+    76→    76→  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+    77→    77→
+    78→    78→  // Upload form state
+    79→    79→  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+    80→    80→  const [isDragOver, setIsDragOver] = useState(false)
+    81→    81→  const [formTitle, setFormTitle] = useState('')
+    82→    82→  const [formPolicyId, setFormPolicyId] = useState('')
+    83→    83→  const [formVersion, setFormVersion] = useState('')
+    84→    84→  const [formDescription, setFormDescription] = useState('')
+    85→    85→  const [formDate, setFormDate] = useState('')
+    86→    86→  const fileInputRef = useRef<HTMLInputElement>(null)
+    87→    87→
+    88→    88→  const resetUploadForm = useCallback(() => {
+    89→    89→    setSelectedFile(null)
+    90→    90→    setFormTitle('')
+    91→    91→    setFormPolicyId('')
+    92→    92→    setFormVersion('')
+    93→    93→    setFormDescription('')
+    94→    94→    setFormDate('')
+    95→    95→  }, [])
+    96→    96→
+    97→    97→  const { data: docsData, isLoading } = useQuery({
+    98→    98→    queryKey: ['documents'],
+    99→    99→    queryFn: () => fetch('/api/documents').then(r => r.json()),
+   100→   100→    enabled: !!user,
+   101→   101→  })
+   102→   102→  const docs = safeArray(docsData)
+   103→   103→
+   104→   104→  const { data: policiesData } = useQuery<PolicyOption[]>({
+   105→   105→    queryKey: ['policies-list'],
+   106→   106→    queryFn: () => fetch('/api/policies').then(r => r.json()),
+   107→   107→    enabled: !!user,
+   108→   108→  })
+   109→   109→  const policies = safeArray<PolicyOption>(policiesData)
+   110→   110→
+   111→   111→  const uploadMutation = useMutation({
+   112→   112→    mutationFn: async (formData: FormData) => {
+   113→   113→      const res = await fetch('/api/documents', { method: 'POST', body: formData })
+   114→   114→      if (!res.ok) {
+   115→   115→        const err = await res.json()
+   116→   116→        throw new Error(err.error || 'Upload failed')
+   117→   117→      }
+   118→   118→      return res.json()
+   119→   119→    },
+   120→   120→    onSuccess: () => {
+   121→   121→      queryClient.invalidateQueries({ queryKey: ['documents'] })
+   122→   122→      toast.success('Document uploaded successfully')
+   123→   123→      setUploadOpen(false)
+   124→   124→      resetUploadForm()
+   125→   125→    },
+   126→   126→    onError: (err: Error) => toast.error(err.message),
+   127→   127→  })
+   128→   128→
+   129→   129→  const processMutation = useMutation({
+   130→   130→    mutationFn: async (id: string) => {
+   131→   131→      const res = await fetch(`/api/documents/${id}/process`, { method: 'POST' })
+   132→   132→      if (!res.ok) throw new Error('Processing failed')
+   133→   133→      return res.json()
+   134→   134→    },
+   135→   135→    onSuccess: () => {
+   136→   136→      queryClient.invalidateQueries({ queryKey: ['documents'] })
+   137→   137→      toast.success('Document processed successfully')
+   138→   138→    },
+   139→   139→    onError: () => toast.error('Processing failed'),
+   140→   140→  })
+   141→   141→
+   142→   142→  const validateFile = useCallback((file: File): boolean => {
+   143→   143→    const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+   144→   144→    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+   145→   145→      toast.error('Unsupported file type. Please upload PDF, DOCX, DOC, or TXT files.')
+   146→   146→      return false
+   147→   147→    }
+   148→   148→    return true
+   149→   149→  }, [])
+   150→   150→
+   151→   151→  const handleFileSelect = useCallback((file: File) => {
+   152→   152→    if (!validateFile(file)) return
+   153→   153→    setSelectedFile(file)
+   154→   154→    // Auto-fill title from filename if empty
+   155→   155→    if (!formTitle) {
+   156→   156→      const nameWithoutExt = file.name.replace(/\.[^.]+$/, '')
+   157→   157→      setFormTitle(nameWithoutExt)
+   158→   158→    }
+   159→   159→  }, [validateFile, formTitle])
+   160→   160→
+   161→   161→  const handleDragOver = useCallback((e: React.DragEvent) => {
+   162→   162→    e.preventDefault()
+   163→   163→    e.stopPropagation()
+   164→   164→    setIsDragOver(true)
+   165→   165→  }, [])
+   166→   166→
+   167→   167→  const handleDragLeave = useCallback((e: React.DragEvent) => {
+   168→   168→    e.preventDefault()
+   169→   169→    e.stopPropagation()
+   170→   170→    setIsDragOver(false)
+   171→   171→  }, [])
+   172→   172→
+   173→   173→  const handleDrop = useCallback((e: React.DragEvent) => {
+   174→   174→    e.preventDefault()
+   175→   175→    e.stopPropagation()
+   176→   176→    setIsDragOver(false)
+   177→   177→    const file = e.dataTransfer.files[0]
+   178→   178→    if (file) handleFileSelect(file)
+   179→   179→  }, [handleFileSelect])
+   180→   180→
+   181→   181→  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+   182→   182→    const file = e.target.files?.[0]
+   183→   183→    if (file) handleFileSelect(file)
+   184→   184→  }, [handleFileSelect])
+   185→   185→
+   186→   186→  const handleUpload = (e: React.FormEvent<HTMLFormElement>) => {
+   187→   187→    e.preventDefault()
+   188→   188→    if (!selectedFile) {
+   189→   189→      toast.error('Please select a file to upload')
+   190→   190→      return
+   191→   191→    }
+   192→   192→    if (!formPolicyId) {
+   193→   193→      toast.error('Please select a policy')
+   194→   194→      return
+   195→   195→    }
+   196→   196→    const formData = new FormData()
+   197→   197→    formData.append('file', selectedFile)
+   198→   198→    formData.append('title', formTitle)
+   199→   199→    formData.append('policyId', formPolicyId)
+   200→   200→    if (formVersion) formData.append('version', formVersion)
+   201→   201→    if (formDescription) formData.append('description', formDescription)
+   202→   202→    if (formDate) formData.append('documentDate', formDate)
+   203→   203→    uploadMutation.mutate(formData)
+   204→   204→  }
+   205→   205→
+   206→   206→  const filteredDocs = docs
+   207→   207→    .filter((doc: Record<string, unknown>) => {
+   208→   208→      if (!search) return true
+   209→   209→      const q = search.toLowerCase()
+   210→   210→      return (
+   211→   211→        ((doc.policy as Record<string, unknown>)?.title as string)?.toLowerCase().includes(q) ||
+   212→   212→        (doc.version as string)?.toLowerCase().includes(q) ||
+   213→   213→        (doc.fileName as string)?.toLowerCase().includes(q)
+   214→   214→      )
+   215→   215→    })
+   216→   216→    .filter((doc: Record<string, unknown>) => !statusFilter || (doc.processingStatus as string) === statusFilter)
+   217→   217→
+   218→   218→  // Status counts - computed from docs
+   219→   219→  const statusCounts = (() => {
+   220→   220→    const counts: Record<string, number> = { '': docs.length }
+   221→   221→    for (const doc of docs as Record<string, unknown>[]) {
+   222→   222→      const s = (doc.processingStatus as string) || 'UPLOADED'
+   223→   223→      counts[s] = (counts[s] || 0) + 1
+   224→   224→    }
+   225→   225→    return counts
+   226→   226→  })()
+   227→   227→
+   228→   228→  return (
+   229→   229→    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+   230→   230→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+   231→   231→        <div>
+   232→   232→          <h1 className="text-2xl font-bold tracking-tight">Documents</h1>
+   233→   233→          <p className="text-muted-foreground text-sm">Manage policy documents and versions</p>
+   234→   234→        </div>
+   235→   235→        <div className="flex items-center gap-2">
+   236→   236→          <Dialog open={uploadOpen} onOpenChange={(open) => {
+   237→   237→            setUploadOpen(open)
+   238→   238→            if (!open) resetUploadForm()
+   239→   239→          }}>
+   240→   240→            <DialogTrigger asChild>
+   241→   241→              <Button>
+   242→   242→                <Upload className="mr-2 h-4 w-4" />
+   243→   243→                Upload Document
+   244→   244→                <Badge variant="secondary" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+   245→   245→                  {docs.length}
+   246→   246→                </Badge>
+   247→   247→              </Button>
+   248→   248→            </DialogTrigger>
+   249→   249→            <DialogContent className="max-w-lg max-h-[90vh]">
+   250→   250→              <DialogHeader>
+   251→   251→                <DialogTitle className="flex items-center gap-2">
+   252→   252→                  <Upload className="h-5 w-5 text-primary" />
+   253→   253→                  Upload Document
+   254→   254→                </DialogTitle>
+   255→   255→              </DialogHeader>
+   256→   256→              <ScrollArea className="max-h-[80vh] pr-4">
+   257→   257→                <form onSubmit={handleUpload} className="space-y-4">
+   258→   258→                  {/* Drag and Drop Zone */}
+   259→   259→                  <div className="space-y-2">
+   260→   260→                    <Label>File <span className="text-destructive">*</span></Label>
+   261→   261→                    <div
+   262→   262→                      role="button"
+   263→   263→                      tabIndex={0}
+   264→   264→                      onClick={() => fileInputRef.current?.click()}
+   265→   265→                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click() }}
+   266→   266→                      onDragOver={handleDragOver}
+   267→   267→                      onDragLeave={handleDragLeave}
+   268→   268→                      onDrop={handleDrop}
+   269→   269→                      className={`
+   270→   270→                        relative flex flex-col items-center justify-center min-h-[200px] rounded-lg border-2 border-dashed p-6
+   271→   271→                        transition-colors cursor-pointer
+   272→   272→                        ${isDragOver
+   273→   273→                          ? 'border-primary bg-primary/10'
+   274→   274→                          : selectedFile
+   275→   275→                            ? 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/20'
+   276→   276→                            : 'border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/50'
+   277→   277→                        }
+   278→   278→                      `
+   279→   279→                      }
+   280→   280→                    >
+   281→   281→                      <input
+   282→   282→                        ref={fileInputRef}
+   283→   283→                        type="file"
+   284→   284→                        accept=".pdf,.docx,.doc,.txt"
+   285→   285→                        className="hidden"
+   286→   286→                        onChange={handleFileInput}
+   287→   287→                      />
+   288→   288→
+   289→   289→                      {selectedFile ? (
+   290→   290→                        <div className="flex items-center gap-3 text-sm">
+   291→   291→                          <div className="h-10 w-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center shrink-0">
+   292→   292→                            {getFileIcon(selectedFile.name)}
+   293→   293→                          </div>
+   294→   294→                          <div className="text-left min-w-0">
+   295→   295→                            <p className="font-medium truncate max-w-[280px]">{selectedFile.name}</p>
+   296→   296→                            <p className="text-xs text-muted-foreground">{formatFileSize(selectedFile.size)}</p>
+   297→   297→                          </div>
+   298→   298→                          <Button
+   299→   299→                            type="button"
+   300→   300→                            variant="ghost"
+   301→   301→                            size="icon"
+   302→   302→                            className="h-8 w-8 shrink-0"
+   303→   303→                            onClick={(e) => {
+   304→   304→                              e.stopPropagation()
+   305→   305→                              setSelectedFile(null)
+   306→   306→                              if (fileInputRef.current) fileInputRef.current.value = ''
+   307→   307→                            }}
+   308→   308→                          >
+   309→   309→                            <X className="h-4 w-4" />
+   310→   310→                          </Button>
+   311→   311→                        </div>
+   312→   312→                      ) : (
+   313→   313→                        <>
+   314→   314→                          <div className={`h-12 w-12 rounded-full flex items-center justify-center mb-3 ${isDragOver ? 'bg-primary/20' : 'bg-muted'}`}>
+   315→   315→                            <Upload className={`h-6 w-6 ${isDragOver ? 'text-primary' : 'text-muted-foreground'}`} />
+   316→   316→                          </div>
+   317→   317→                          <p className="text-sm font-medium text-muted-foreground">
+   318→   318→                            {isDragOver ? 'Drop your file here' : 'Drag & drop a file here'}
+   319→   319→                          </p>
+   320→   320→                          <p className="text-xs text-muted-foreground/70 mt-1">
+   321→   321→                            Supports PDF, DOCX, DOC, TXT
+   322→   322→                          </p>
+   323→   323→                        </>
+   324→   324→                      )}
+   325→   325→                    </div>
+   326→   326→                    <p className="text-xs text-muted-foreground text-center">
+   327→   327→                      <button
+   328→   328→                        type="button"
+   329→   329→                        className="text-primary hover:underline"
+   330→   330→                        onClick={() => fileInputRef.current?.click()}
+   331→   331→                      >
+   332→   332→                        or browse files
+   333→   333→                      </button>
+   334→   334→                    </p>
+   335→   335→                  </div>
+   336→   336→
+   337→   337→                  {/* Title */}
+   338→   338→                  <div className="space-y-2">
+   339→   339→                    <Label htmlFor="doc-title">Title <span className="text-destructive">*</span></Label>
+   340→   340→                    <Input
+   341→   341→                      id="doc-title"
+   342→   342→                      value={formTitle}
+   343→   343→                      onChange={e => setFormTitle(e.target.value)}
+   344→   344→                      placeholder="Document title"
+   345→   345→                      required
+   346→   346→                    />
+   347→   347→                  </div>
+   348→   348→
+   349→   349→                  {/* Policy */}
+   350→   350→                  <div className="space-y-2">
+   351→   351→                    <Label>Policy <span className="text-destructive">*</span></Label>
+   352→   352→                    <Select value={formPolicyId} onValueChange={setFormPolicyId}>
+   353→   353→                      <SelectTrigger>
+   354→   354→                        <SelectValue placeholder="Select a policy" />
+   355→   355→                      </SelectTrigger>
+   356→   356→                      <SelectContent>
+   357→   357→                        {policies.map(p => (
+   358→   358→                          <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+   359→   359→                        ))}
+   360→   360→                      </SelectContent>
+   361→   361→                    </Select>
+   362→   362→                  </div>
+   363→   363→
+   364→   364→                  {/* Version */}
+   365→   365→                  <div className="space-y-2">
+   366→   366→                    <Label htmlFor="doc-version">Version</Label>
+   367→   367→                    <Input
+   368→   368→                      id="doc-version"
+   369→   369→                      value={formVersion}
+   370→   370→                      onChange={e => setFormVersion(e.target.value)}
+   371→   371→                      placeholder="e.g. 2024-Amendment"
+   372→   372→                    />
+   373→   373→                  </div>
+   374→   374→
+   375→   375→                  {/* Description */}
+   376→   376→                  <div className="space-y-2">
+   377→   377→                    <Label htmlFor="doc-desc">Description</Label>
+   378→   378→                    <Textarea
+   379→   379→                      id="doc-desc"
+   380→   380→                      value={formDescription}
+   381→   381→                      onChange={e => setFormDescription(e.target.value)}
+   382→   382→                      placeholder="Optional description..."
+   383→   383→                      rows={2}
+   384→   384→                    />
+   385→   385→                  </div>
+   386→   386→
+   387→   387→                  {/* Document Date */}
+   388→   388→                  <div className="space-y-2">
+   389→   389→                    <Label htmlFor="doc-date">Document Date</Label>
+   390→   390→                    <Input
+   391→   391→                      id="doc-date"
+   392→   392→                      type="date"
+   393→   393→                      value={formDate}
+   394→   394→                      onChange={e => setFormDate(e.target.value)}
+   395→   395→                    />
+   396→   396→                  </div>
+   397→   397→
+   398→   398→                  {/* Submit */}
+   399→   399→                  <Button type="submit" className="w-full" disabled={uploadMutation.isPending || !selectedFile}>
+   400→   400→                    {uploadMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+   401→   401→                    {uploadMutation.isPending ? 'Uploading...' : 'Upload Document'}
+   402→   402→                  </Button>
+   403→   403→                </form>
+   404→   404→              </ScrollArea>
+   405→   405→            </DialogContent>
+   406→   406→          </Dialog>
+   407→   407→        </div>
+   408→   408→      </div>
+   409→   409→
+   410→   410→      <div className="flex flex-col sm:flex-row gap-3">
+   411→   411→        <div className="relative flex-1">
+   412→   412→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   413→   413→          <Input
+   414→   414→            placeholder="Search by title, version, or filename..."
+   415→   415→            value={search}
+   416→   416→            onChange={e => setSearch(e.target.value)}
+   417→   417→            className="pl-9"
+   418→   418→          />
+   419→   419→        </div>
+   420→   420→        <div className="flex items-center gap-2">
+   421→   421→          <div className="flex gap-1.5 flex-wrap">
+   422→   422→            {['', 'UPLOADED', 'PROCESSING', 'READY', 'FAILED'].map(s => (
+   423→   423→              <Button
+   424→   424→                key={s}
+   425→   425→                variant={statusFilter === s ? 'default' : 'outline'}
+   426→   426→                size="sm"
+   427→   427→                onClick={() => setStatusFilter(s)}
+   428→   428→                className="gap-1.5"
+   429→   429→              >
+   430→   430→                {s || 'All'}
+   431→   431→                <Badge variant={statusFilter === s ? 'secondary' : 'outline'} className="h-4 min-w-[16px] px-1 text-[10px]">
+   432→   432→                  {statusCounts[s] || 0}
+   433→   433→                </Badge>
+   434→   434→              </Button>
+   435→   435→            ))}
+   436→   436→          </div>
+   437→   437→          <div className="hidden sm:flex items-center border rounded-md">
+   438→   438→            <Button
+   439→   439→              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+   440→   440→              size="icon"
+   441→   441→              className="h-8 w-8 rounded-r-none"
+   442→   442→              onClick={() => setViewMode('grid')}
+   443→   443→            >
+   444→   444→              <LayoutGrid className="h-4 w-4" />
+   445→   445→            </Button>
+   446→   446→            <Button
+   447→   447→              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+   448→   448→              size="icon"
+   449→   449→              className="h-8 w-8 rounded-l-none"
+   450→   450→              onClick={() => setViewMode('list')}
+   451→   451→            >
+   452→   452→              <List className="h-4 w-4" />
+   453→   453→            </Button>
+   454→   454→          </div>
+   455→   455→        </div>
+   456→   456→      </div>
+   457→   457→
+   458→   458→      {isLoading ? (
+   459→   459→        <div className="grid gap-4 md:grid-cols-2">
+   460→   460→          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-lg" />)}
+   461→   461→        </div>
+   462→   462→      ) : filteredDocs.length === 0 ? (
+   463→   463→        <Card>
+   464→   464→          <CardContent className="p-12 text-center">
+   465→   465→            <FolderOpen className="h-12 w-12 mx-auto mb-3 text-muted-foreground/40" />
+   466→   466→            <p className="font-medium text-muted-foreground">No documents found</p>
+   467→   467→            <p className="text-sm text-muted-foreground/70 mt-1">
+   468→   468→              {search || statusFilter ? 'Try adjusting your search or filter criteria.' : 'Upload your first document to get started.'}
+   469→   469→            </p>
+   470→   470→          </CardContent>
+   471→   471→        </Card>
+   472→   472→      ) : viewMode === 'grid' ? (
+   473→   473→        <motion.div variants={container} className="grid gap-4 md:grid-cols-2">
+   474→   474→          {filteredDocs.map((doc: Record<string, unknown>) => (
+   475→   475→            <motion.div key={doc.id as string} variants={item}>
+   476→   476→              <Card className="hover:shadow-md transition-all cursor-pointer group" onClick={() => setSelectedDoc(doc)}>
+   477→   477→                <CardContent className="p-4">
+   478→   478→                  <div className="flex items-start justify-between gap-2">
+   479→   479→                    <div className="flex items-center gap-3 min-w-0">
+   480→   480→                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+   481→   481→                        {(doc.processingStatus as string) === 'PROCESSING'
+   482→   482→                          ? statusIcons.PROCESSING
+   483→   483→                          : (doc.processingStatus as string) === 'FAILED'
+   484→   484→                            ? statusIcons.FAILED
+   485→   485→                            : getFileIcon(doc.fileName as string || '')}
+   486→   486→                      </div>
+   487→   487→                      <div className="min-w-0">
+   488→   488→                        <p className="font-medium text-sm truncate">{(doc.policy as Record<string, unknown>)?.title || 'Untitled'}</p>
+   489→   489→                        <p className="text-xs text-muted-foreground">Version: {doc.version as string || 'N/A'}</p>
+   490→   490→                      </div>
+   491→   491→                    </div>
+   492→   492→                    <Badge variant="outline" className={statusColors[(doc.processingStatus as string) || 'UPLOADED']}>
+   493→   493→                      {(doc.processingStatus as string) || 'UPLOADED'}
+   494→   494→                    </Badge>
+   495→   495→                  </div>
+   496→   496→                  <div className="flex items-center gap-3 mt-3 text-xs text-muted-foreground">
+   497→   497→                    <span className="truncate">{doc.fileName as string || 'No file'}</span>
+   498→   498→                    <span className="shrink-0">·</span>
+   499→   499→                    <span className="shrink-0">{doc.createdAt ? format(new Date(doc.createdAt as string), 'MMM d, yyyy') : ''}</span>
+   500→   500→                  </div>
+   501→   501→                </CardContent>
+   502→   502→              </Card>
+   503→   503→            </motion.div>
+   504→   504→          ))}
+   505→   505→        </motion.div>
+   506→   506→      ) : (
+   507→   507→        <motion.div variants={container} className="space-y-2">
+   508→   508→          {filteredDocs.map((doc: Record<string, unknown>) => (
+   509→   509→            <motion.div key={doc.id as string} variants={item}>
+   510→   510→              <Card
+   511→   511→                className="hover:shadow-md transition-all cursor-pointer group"
+   512→   512→                onClick={() => setSelectedDoc(doc)}
+   513→   513→              >
+   514→   514→                <CardContent className="p-3 flex items-center gap-4">
+   515→   515→                  <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+   516→   516→                    {(doc.processingStatus as string) === 'PROCESSING'
+   517→   517→                      ? statusIcons.PROCESSING
+   518→   518→                      : (doc.processingStatus as string) === 'FAILED'
+   519→   519→                        ? statusIcons.FAILED
+   520→   520→                        : getFileIcon(doc.fileName as string || '')}
+   521→   521→                  </div>
+   522→   522→                  <div className="flex-1 min-w-0">
+   523→   523→                    <p className="font-medium text-sm truncate">{(doc.policy as Record<string, unknown>)?.title || 'Untitled'}</p>
+   524→   524→                    <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+   525→   525→                      <span>{doc.fileName as string || 'No file'}</span>
+   526→   526→                      <span>·</span>
+   527→   527→                      <span>v{doc.version as string || 'N/A'}</span>
+   528→   528→                      <span>·</span>
+   529→   529→                      <span>{doc.createdAt ? format(new Date(doc.createdAt as string), 'MMM d, yyyy') : ''}</span>
+   530→   530→                    </div>
+   531→   531→                  </div>
+   532→   532→                  <Badge variant="outline" className={statusColors[(doc.processingStatus as string) || 'UPLOADED']}>
+   533→   533→                    {(doc.processingStatus as string) || 'UPLOADED'}
+   534→   534→                  </Badge>
+   535→   535→                </CardContent>
+   536→   536→              </Card>
+   537→   537→            </motion.div>
+   538→   538→          ))}
+   539→   539→        </motion.div>
+   540→   540→      )}
+   541→   541→
+   542→   542→      <Dialog open={!!selectedDoc} onOpenChange={() => setSelectedDoc(null)}>
+   543→   543→        <DialogContent className="max-w-2xl max-h-[80vh] pointer-events-auto">
+   544→   544→          <DialogHeader>
+   545→   545→            <DialogTitle>Document Details</DialogTitle>
+   546→   546→          </DialogHeader>
+   547→   547→          {selectedDoc && (
+   548→   548→            <ScrollArea className="max-h-[60vh]">
+   549→   549→              <div className="space-y-4 pr-4">
+   550→   550→                <div className="grid grid-cols-2 gap-4">
+   551→   551→                  <div><p className="text-xs text-muted-foreground">Policy</p><p className="font-medium text-sm">{(selectedDoc.policy as Record<string, unknown>)?.title}</p></div>
+   552→   552→                  <div><p className="text-xs text-muted-foreground">Version</p><p className="font-medium text-sm">{selectedDoc.version as string || 'N/A'}</p></div>
+   553→   553→                  <div><p className="text-xs text-muted-foreground">Type</p><Badge variant="outline">{selectedDoc.documentType as string}</Badge></div>
+   554→   554→                  <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="outline" className={statusColors[(selectedDoc.processingStatus as string) || 'UPLOADED']}>{selectedDoc.processingStatus as string}</Badge></div>
+   555→   555→                  <div><p className="text-xs text-muted-foreground">File Name</p><p className="font-medium text-sm">{selectedDoc.fileName as string || 'N/A'}</p></div>
+   556→   556→                  <div><p className="text-xs text-muted-foreground">Created</p><p className="font-medium text-sm">{selectedDoc.createdAt ? format(new Date(selectedDoc.createdAt as string), 'MMM d, yyyy') : 'N/A'}</p></div>
+   557→   557→                </div>
+   558→   558→                {(selectedDoc.processingStatus as string) === 'UPLOADED' && (
+   559→   559→                  <Button onClick={() => processMutation.mutate(selectedDoc.id as string)} disabled={processMutation.isPending}>
+   560→   560→                    <Play className="mr-2 h-4 w-4" />{processMutation.isPending ? 'Processing...' : 'Process Document'}
+   561→   561→                  </Button>
+   562→   562→                )}
+   563→   563→                {selectedDoc.extractedText && (
+   564→   564→                  <div>
+   565→   565→                    <p className="text-xs font-medium text-muted-foreground mb-2">Extracted Text</p>
+   566→   566→                    <div className="bg-muted rounded-lg p-4 text-sm whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-thin font-mono border border-border/50">
+   567→   567→                      {selectedDoc.extractedText as string}
+   568→   568→                    </div>
+   569→   569→                  </div>
+   570→   570→                )}
+   571→   571→              </div>
+   572→   572→            </ScrollArea>
+   573→   573→          )}
+   574→   574→        </DialogContent>
+   575→   575→      </Dialog>
+   576→   576→    </motion.div>
+   577→   577→  )
+   578→   578→}

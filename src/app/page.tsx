@@ -20,6 +20,7 @@ import CategoriesView from '@/components/views/CategoriesView'
 import AuditLogView from '@/components/views/AuditLogView'
 import UsersView from '@/components/views/UsersView'
 import SettingsView from '@/components/views/SettingsView'
+import AIInsightsView from '@/components/views/AIInsightsView'
 import CommandPalette from '@/components/CommandPalette'
 import KeyboardShortcutsHelp from '@/components/KeyboardShortcutsHelp'
 import GPrefixHint from '@/components/GPrefixHint'
@@ -49,6 +50,7 @@ function AppContent() {
   const views: Record<ViewType, React.ReactNode> = {
     auth: <AuthView />,
     dashboard: <DashboardView />,
+    'ai-insights': <AIInsightsView />,
     policies: <PoliciesView />,
     documents: <DocumentsView />,
     comparisons: <ComparisonsView />,

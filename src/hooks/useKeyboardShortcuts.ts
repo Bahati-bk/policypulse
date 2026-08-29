@@ -11,6 +11,7 @@ interface ShortcutEntry {
 
 const G_SHORTCUTS: Record<string, ViewType> = {
   d: 'dashboard',
+  i: 'ai-insights',
   p: 'policies',
   o: 'documents',
   c: 'comparisons',
@@ -22,6 +23,7 @@ const G_SHORTCUTS: Record<string, ViewType> = {
 
 const G_HINTS: { key: string; label: string }[] = [
   { key: 'd', label: 'Dashboard' },
+  { key: 'i', label: 'AI Insights' },
   { key: 'p', label: 'Policies' },
   { key: 'o', label: 'Documents' },
   { key: 'c', label: 'Comparisons' },
@@ -33,6 +35,7 @@ const G_HINTS: { key: string; label: string }[] = [
 
 const ALL_SHORTCUTS: ShortcutEntry[] = [
   { keys: 'g d', label: 'Dashboard', description: 'Go to Dashboard' },
+  { keys: 'g i', label: 'AI Insights', description: 'Go to AI Insights' },
   { keys: 'g p', label: 'Policies', description: 'Go to Policies' },
   { keys: 'g o', label: 'Documents', description: 'Go to Documents' },
   { keys: 'g c', label: 'Comparisons', description: 'Go to Comparisons' },
