@@ -1,9 +1,9 @@
 // Deepseek AI Service — OpenAI-compatible API integration
 // Used for policy analysis, comparison, and personalized insights
 
-const DEEPSEEK_API_KEY = 'REMOVED'
-const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1'
-const DEEPSEEK_MODEL = 'deepseek-chat'
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || ''
+const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com/v1'
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -45,7 +45,7 @@ export async function deepseekChat(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      ...(DEEPSEEK_API_KEY ? { 'Authorization': `Bearer ${DEEPSEEK_API_KEY}` } : {}),
     },
     body: JSON.stringify(body),
   })

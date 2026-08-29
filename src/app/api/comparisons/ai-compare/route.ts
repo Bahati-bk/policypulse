@@ -6,7 +6,6 @@ import { autoSendSmsAlert } from '@/lib/sms'
 import fs from 'fs'
 import path from 'path'
 
-
 interface AIChange {
   changeType: 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RESTRUCTURED'
   description: string
