@@ -1,9 +1,0 @@
-INCOME TAX ACT (CHAPTER 340)
-
-PART VI - WITHHOLDING TAX
-
-Section 118: Withholding tax on payments to residents
-(1) Every person who makes a payment of a specified nature to a resident shall withhold tax at the rate of six percent of the gross amount of the payment.
-(2) The specified payments include: management fees, professional fees, royalties, dividends, interest, and commissions.
-(3) The tax withheld under this section shall be remitted to the Commissioner within fifteen days after the end of the month in which the withholding occurred.
-(4) Any person who fails to withhold tax as required shall be liable to pay the tax and a penalty equal to the amount of tax not withheld.

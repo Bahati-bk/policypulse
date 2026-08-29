@@ -52,3 +52,20 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database
+/db/
+*.db
+*.db-journal
+
+# Generated/tool artifacts
+/tool-results/
+/agent-ctx/
+/keepalive.sh
+/start-server.sh
+/screenshot.png
+/dashboard.png
+/tests/
+
+# Upload directory (user content)
+/upload/
