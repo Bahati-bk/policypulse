@@ -91,38 +91,43 @@ export default function DashboardView() {
   const { data, isLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: () => fetch('/api/stats').then(r => r.json()),
+    enabled: !!user,
   })
 
   const { data: alertsData } = useQuery({
     queryKey: ['recent-alerts'],
     queryFn: () => fetch('/api/alerts').then(r => r.json()),
+    enabled: !!user,
   })
 
   const { data: policiesData } = useQuery({
     queryKey: ['policies-dashboard'],
     queryFn: () => fetch('/api/policies').then(r => r.json()),
+    enabled: !!user,
   })
 
   const { data: categoriesData } = useQuery({
     queryKey: ['categories-dashboard'],
     queryFn: () => fetch('/api/categories').then(r => r.json()),
+    enabled: !!user,
   })
 
   const { data: recentDocsData } = useQuery({
     queryKey: ['recent-documents-dashboard'],
     queryFn: () => fetch('/api/documents').then(r => r.json()),
+    enabled: !!user,
   })
 
-  const recentDocs = (recentDocsData || []).slice(0, 4)
+  const recentDocs = Array.isArray(recentDocsData) ? recentDocsData.slice(0, 4) : []
   const stats = data?.stats || { policies: 0, documents: 0, comparisons: 0, pendingAlerts: 0, users: 0 }
   const recentActivity = data?.recentActivity || []
-  const severityDist = data?.severityDistribution || []
-  const activityTrend = data?.activityTrend || []
-  const recentAlerts = (alertsData?.alerts || []).slice(0, 3)
+  const severityDist = Array.isArray(data?.severityDistribution) ? data.severityDistribution : []
+  const activityTrend = Array.isArray(data?.activityTrend) ? data.activityTrend : []
+  const recentAlerts = Array.isArray(alertsData?.alerts) ? alertsData.alerts.slice(0, 3) : []
   const totalChanges = severityDist.reduce((sum: number, e: Record<string, number>) => sum + (e.value || 0), 0)
 
   // Policy type distribution
-  const policies: Array<Record<string, unknown>> = policiesData || []
+  const policies: Array<Record<string, unknown>> = Array.isArray(policiesData) ? policiesData : []
   const policyTypeDist = policies.reduce<Record<string, number>>((acc, p) => {
     const t = (p.policyType as string) || 'OTHER'
     acc[t] = (acc[t] || 0) + 1
@@ -132,7 +137,7 @@ export default function DashboardView() {
   const totalPolicies = policies.length
 
   // Category policy counts for bar chart
-  const categories: Array<Record<string, unknown>> = categoriesData?.categories || []
+  const categories: Array<Record<string, unknown>> = Array.isArray(categoriesData?.categories) ? categoriesData.categories : []
   const categoryBarData = categories
     .map(c => ({
       name: (c.name as string).length > 15 ? (c.name as string).slice(0, 14) + '…' : (c.name as string),
