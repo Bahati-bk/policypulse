@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -15,15 +16,17 @@ const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { st
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }
 
 export default function NotificationsView() {
+  const user = useAppStore(s => s.user)
   const setView = useAppStore(s => s.setView)
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
     queryKey: ['all-notifications'],
     queryFn: () => fetch('/api/notifications').then(r => r.json()),
+    enabled: !!user,
   })
 
-  const notifications = (data?.notifications || []) as Array<Record<string, unknown>>
+  const notifications = safeArray<Record<string, unknown>>(data?.notifications)
   const unreadCount = data?.unreadCount || 0
 
   const markReadMutation = useMutation({

@@ -22,6 +22,8 @@ import {
 } from '@/components/ui/select'
 import { FileText, Upload, Play, FolderOpen, Search, File, FileSpreadsheet, Loader2, LayoutGrid, List, X } from 'lucide-react'
 import { format } from 'date-fns'
+import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 
 const statusColors: Record<string, string> = {
   UPLOADED: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -66,6 +68,7 @@ interface PolicyOption {
 
 export default function DocumentsView() {
   const queryClient = useQueryClient()
+  const user = useAppStore((s) => s.user)
   const [selectedDoc, setSelectedDoc] = useState<Record<string, unknown> | null>(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -91,15 +94,19 @@ export default function DocumentsView() {
     setFormDate('')
   }, [])
 
-  const { data: docs = [], isLoading } = useQuery({
+  const { data: docsData, isLoading } = useQuery({
     queryKey: ['documents'],
     queryFn: () => fetch('/api/documents').then(r => r.json()),
+    enabled: !!user,
   })
+  const docs = safeArray(docsData)
 
-  const { data: policies = [] } = useQuery<PolicyOption[]>({
+  const { data: policiesData } = useQuery<PolicyOption[]>({
     queryKey: ['policies-list'],
     queryFn: () => fetch('/api/policies').then(r => r.json()),
+    enabled: !!user,
   })
+  const policies = safeArray<PolicyOption>(policiesData)
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {

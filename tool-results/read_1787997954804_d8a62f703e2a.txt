@@ -1,0 +1,629 @@
+     1→'use client'
+     2→
+     3→import { useState, useMemo } from 'react'
+     4→import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+     5→import { motion } from 'framer-motion'
+     6→import { toast } from 'sonner'
+     7→import { Card, CardContent } from '@/components/ui/card'
+     8→import { Button } from '@/components/ui/button'
+     9→import { Input } from '@/components/ui/input'
+    10→import { Badge } from '@/components/ui/badge'
+    11→import { Skeleton } from '@/components/ui/skeleton'
+    12→import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+    13→import {
+    14→  Select,
+    15→  SelectContent,
+    16→  SelectItem,
+    17→  SelectTrigger,
+    18→  SelectValue,
+    19→} from '@/components/ui/select'
+    20→import {
+    21→  AlertDialog,
+    22→  AlertDialogAction,
+    23→  AlertDialogCancel,
+    24→  AlertDialogContent,
+    25→  AlertDialogDescription,
+    26→  AlertDialogFooter,
+    27→  AlertDialogHeader,
+    28→  AlertDialogTitle,
+    29→} from '@/components/ui/alert-dialog'
+    30→import { Label } from '@/components/ui/label'
+    31→import { Users, Search, Mail, MapPin, Building2, Briefcase, Bell, CalendarDays, ShieldCheck, Activity, ArrowRight, KeyRound } from 'lucide-react'
+    32→import { useAppStore } from '@/lib/store'
+    33→
+    34→interface UserProfile {
+    35→  jurisdiction: string
+    36→  businessType: string | null
+    37→  employmentStatus: string | null
+    38→}
+    39→
+    40→interface UserCount {
+    41→  subscriptions: number
+    42→  notifications: number
+    43→}
+    44→
+    45→interface UserItem {
+    46→  id: string
+    47→  email: string
+    48→  name: string | null
+    49→  role: string
+    50→  phone: string | null
+    51→  emailVerifiedAt: string | null
+    52→  createdAt: string
+    53→  profile: UserProfile | null
+    54→  _count: UserCount
+    55→}
+    56→
+    57→const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
+    58→const mi = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
+    59→
+    60→const roleColors: Record<string, string> = {
+    61→  ADMIN: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+    62→  USER: 'bg-slate-100 text-slate-700 dark:bg-slate-800/50 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+    63→  ANALYST: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+    64→}
+    65→
+    66→const roleDescriptions: Record<string, string> = {
+    67→  ADMIN: 'Full system access',
+    68→  USER: 'Standard user',
+    69→  ANALYST: 'Can create & analyze',
+    70→}
+    71→
+    72→const avatarGradients = [
+    73→  'from-emerald-500 to-teal-600',
+    74→  'from-teal-500 to-cyan-600',
+    75→  'from-amber-500 to-orange-600',
+    76→  'from-rose-500 to-pink-600',
+    77→  'from-emerald-400 to-cyan-500',
+    78→  'from-amber-400 to-yellow-500',
+    79→]
+    80→
+    81→function getInitials(name: string | null | undefined): string {
+    82→  if (!name) return 'U'
+    83→  const clean = name.replace(/ \(Deactivated\)$/, '')
+    84→  const parts = clean.split(' ')
+    85→  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+    86→  return clean.slice(0, 2).toUpperCase()
+    87→}
+    88→
+    89→function getAvatarGradient(id: string): string {
+    90→  let hash = 0
+    91→  for (let i = 0; i < id.length; i++) {
+    92→    hash = id.charCodeAt(i) + ((hash << 5) - hash)
+    93→  }
+    94→  return avatarGradients[Math.abs(hash) % avatarGradients.length]
+    95→}
+    96→
+    97→function relativeDate(dateStr: string): string {
+    98→  const date = new Date(dateStr)
+    99→  const now = new Date()
+   100→  const diffMs = now.getTime() - date.getTime()
+   101→  const diffSec = Math.floor(diffMs / 1000)
+   102→  const diffMin = Math.floor(diffSec / 60)
+   103→  const diffHr = Math.floor(diffMin / 60)
+   104→  const diffDay = Math.floor(diffHr / 24)
+   105→  const diffMo = Math.floor(diffDay / 30)
+   106→  const diffYr = Math.floor(diffDay / 365)
+   107→
+   108→  if (diffYr > 0) return `${diffYr}y ago`
+   109→  if (diffMo > 0) return `${diffMo}mo ago`
+   110→  if (diffDay > 0) return `${diffDay}d ago`
+   111→  if (diffHr > 0) return `${diffHr}h ago`
+   112→  if (diffMin > 0) return `${diffMin}m ago`
+   113→  return 'Just now'
+   114→}
+   115→
+   116→function isDeactivated(name: string | null): boolean {
+   117→  return !!name?.includes('(Deactivated)')
+   118→}
+   119→
+   120→function getRoleChangeConfirmMsg(role: string, userName: string): string {
+   121→  return `Change ${userName}'s role to ${role}? They will gain ${role === 'ADMIN' ? 'full system access' : role === 'ANALYST' ? 'ability to create and analyze' : 'standard user'} permissions.`
+   122→}
+   123→
+   124→export default function UsersView() {
+   125→  const queryClient = useQueryClient()
+   126→  const setView = useAppStore(s => s.setView)
+   127→  const [search, setSearch] = useState('')
+   128→  const [selectedUser, setSelectedUser] = useState<UserItem | null>(null)
+   129→  const [detailOpen, setDetailOpen] = useState(false)
+   130→  const [confirmOpen, setConfirmOpen] = useState(false)
+   131→  const [pendingAction, setPendingAction] = useState<'deactivate' | 'activate'>('deactivate')
+   132→  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false)
+   133→  const [pendingRole, setPendingRole] = useState('')
+   134→
+   135→  const { data, isLoading } = useQuery({
+   136→    queryKey: ['admin-users', search],
+   137→    queryFn: () => {
+   138→      const params = search ? `?search=${encodeURIComponent(search)}` : ''
+   139→      return fetch(`/api/users${params}`).then(r => r.json())
+   140→    },
+   141→  })
+   142→
+   143→  const users: UserItem[] = data?.users || []
+   144→
+   145→  // User statistics
+   146→  const stats = useMemo(() => {
+   147→    const total = users.length
+   148→    const active = users.filter(u => !isDeactivated(u.name)).length
+   149→    const byRole: Record<string, number> = { ADMIN: 0, USER: 0, ANALYST: 0 }
+   150→    users.forEach(u => {
+   151→      const r = u.role as string
+   152→      if (byRole[r] !== undefined) byRole[r]++
+   153→      else byRole[r] = 1
+   154→    })
+   155→    return { total, active, byRole }
+   156→  }, [users])
+   157→
+   158→  // Fetch audit logs for the selected user (client-side filter)
+   159→  const { data: auditData } = useQuery({
+   160→    queryKey: ['audit-logs'],
+   161→    enabled: detailOpen && !!selectedUser,
+   162→    queryFn: () => fetch('/api/audit-logs?limit=50').then(r => r.json()),
+   163→  })
+   164→
+   165→  const userActivity = useMemo(() => {
+   166→    if (!auditData?.logs || !selectedUser) return []
+   167→    return auditData.logs
+   168→      .filter((log: Record<string, unknown>) => {
+   169→        const actor = log.actor as Record<string, unknown> | null
+   170→        return actor?.id === selectedUser.id
+   171→      })
+   172→      .slice(0, 5)
+   173→  }, [auditData, selectedUser])
+   174→
+   175→  const roleMutation = useMutation({
+   176→    mutationFn: async ({ id, role }: { id: string; role: string }) => {
+   177→      const res = await fetch(`/api/users/${id}`, {
+   178→        method: 'PATCH',
+   179→        headers: { 'Content-Type': 'application/json' },
+   180→        body: JSON.stringify({ role }),
+   181→      })
+   182→      if (!res.ok) throw new Error('Failed to update role')
+   183→      return res.json()
+   184→    },
+   185→    onSuccess: () => {
+   186→      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+   187→      toast.success('Role updated successfully')
+   188→      setRoleConfirmOpen(false)
+   189→      if (selectedUser) {
+   190→        setSelectedUser({ ...selectedUser, role: pendingRole })
+   191→      }
+   192→    },
+   193→    onError: () => toast.error('Failed to update role'),
+   194→  })
+   195→
+   196→  const activateMutation = useMutation({
+   197→    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+   198→      const res = await fetch(`/api/users/${id}`, {
+   199→        method: 'PATCH',
+   200→        headers: { 'Content-Type': 'application/json' },
+   201→        body: JSON.stringify({ isActive }),
+   202→      })
+   203→      if (!res.ok) throw new Error('Failed to update user')
+   204→      return res.json()
+   205→    },
+   206→    onSuccess: (_data, variables) => {
+   207→      queryClient.invalidateQueries({ queryKey: ['admin-users'] })
+   208→      toast.success(variables.isActive ? 'User activated' : 'User deactivated')
+   209→      setConfirmOpen(false)
+   210→      setDetailOpen(false)
+   211→      setSelectedUser(null)
+   212→    },
+   213→    onError: () => toast.error('Failed to update user'),
+   214→  })
+   215→
+   216→  function handleCardClick(user: UserItem) {
+   217→    setSelectedUser(user)
+   218→    setDetailOpen(true)
+   219→  }
+   220→
+   221→  function handleRoleSelect(newRole: string) {
+   222→    if (!selectedUser || newRole === selectedUser.role) return
+   223→    setPendingRole(newRole)
+   224→    setRoleConfirmOpen(true)
+   225→  }
+   226→
+   227→  function confirmRoleChange() {
+   228→    if (!selectedUser) return
+   229→    roleMutation.mutate({ id: selectedUser.id, role: pendingRole })
+   230→  }
+   231→
+   232→  function handleDeactivateToggle() {
+   233→    if (!selectedUser) return
+   234→    const deactivated = isDeactivated(selectedUser.name)
+   235→    setPendingAction(deactivated ? 'activate' : 'deactivate')
+   236→    setConfirmOpen(true)
+   237→  }
+   238→
+   239→  function confirmAction() {
+   240→    if (!selectedUser) return
+   241→    activateMutation.mutate({ id: selectedUser.id, isActive: pendingAction === 'activate' })
+   242→  }
+   243→
+   244→  return (
+   245→    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+   246→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+   247→        <div>
+   248→          <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
+   249→          <p className="text-muted-foreground text-sm">Manage user accounts, roles, and access</p>
+   250→        </div>
+   251→        <div className="relative w-full sm:w-72">
+   252→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   253→          <Input
+   254→            placeholder="Search by name or email..."
+   255→            value={search}
+   256→            onChange={(e) => setSearch(e.target.value)}
+   257→            className="pl-9"
+   258→          />
+   259→        </div>
+   260→      </div>
+   261→
+   262→      {/* User Statistics Row */}
+   263→      {!isLoading && users.length > 0 && (
+   264→        <motion.div variants={mi} className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+   265→          <Card className="bg-gradient-to-br from-card to-muted/30 border-border/40">
+   266→            <CardContent className="p-4 flex items-center gap-3">
+   267→              <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+   268→                <Users className="h-4 w-4" />
+   269→              </div>
+   270→              <div>
+   271→                <p className="text-xl font-bold tabular-nums leading-tight">{stats.total}</p>
+   272→                <p className="text-[11px] text-muted-foreground">Total Users</p>
+   273→              </div>
+   274→            </CardContent>
+   275→          </Card>
+   276→          <Card className="bg-gradient-to-br from-card to-muted/30 border-border/40">
+   277→            <CardContent className="p-4 flex items-center gap-3">
+   278→              <div className="h-9 w-9 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 relative">
+   279→                <ShieldCheck className="h-4 w-4" />
+   280→                <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-card" />
+   281→              </div>
+   282→              <div>
+   283→                <p className="text-xl font-bold tabular-nums leading-tight text-emerald-600 dark:text-emerald-400">{stats.active}</p>
+   284→                <p className="text-[11px] text-muted-foreground">Active Users</p>
+   285→              </div>
+   286→            </CardContent>
+   287→          </Card>
+   288→          {(['ADMIN', 'ANALYST', 'USER'] as const).map(role => (
+   289→            <Card key={role} className="bg-gradient-to-br from-card to-muted/30 border-border/40">
+   290→              <CardContent className="p-4 flex items-center gap-3">
+   291→                <Badge variant="outline" className={`text-[10px] px-2 py-0.5 ${roleColors[role]}`}>
+   292→                  {role}
+   293→                </Badge>
+   294→                <div>
+   295→                  <p className="text-xl font-bold tabular-nums leading-tight">{stats.byRole[role]}</p>
+   296→                  <p className="text-[11px] text-muted-foreground">{roleDescriptions[role]}</p>
+   297→                </div>
+   298→              </CardContent>
+   299→            </Card>
+   300→          ))}
+   301→        </motion.div>
+   302→      )}
+   303→
+   304→      {isLoading ? (
+   305→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   306→          {Array.from({ length: 6 }).map((_, i) => (
+   307→            <Skeleton key={i} className="h-52 rounded-xl" />
+   308→          ))}
+   309→        </div>
+   310→      ) : users.length === 0 ? (
+   311→        <Card>
+   312→          <CardContent className="p-12 text-center text-muted-foreground">
+   313→            <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+   314→            <p className="font-medium text-lg">No users found</p>
+   315→            <p className="text-sm mt-1 text-muted-foreground/70">
+   316→              {search ? 'Try adjusting your search query.' : 'No user accounts exist yet.'}
+   317→            </p>
+   318→          </CardContent>
+   319→        </Card>
+   320→      ) : (
+   321→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+   322→          {users.map((u) => {
+   323→            const deactivated = isDeactivated(u.name)
+   324→            const initials = getInitials(u.name)
+   325→            const gradient = getAvatarGradient(u.id)
+   326→
+   327→            return (
+   328→              <motion.div key={u.id} variants={mi}>
+   329→                <Card
+   330→                  className={`card-glow cursor-pointer transition-all duration-200 hover:shadow-lg hover:border-primary/30 ${deactivated ? 'opacity-60' : ''}`}
+   331→                  onClick={() => handleCardClick(u)}
+   332→                >
+   333→                  <CardContent className="p-4">
+   334→                    <div className="flex items-start gap-3">
+   335→                      {/* Avatar with gradient + status dot */}
+   336→                      <div className="relative shrink-0">
+   337→                        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${gradient} flex items-center justify-center text-sm font-bold text-white`}>
+   338→                          {initials}
+   339→                        </div>
+   340→                        <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card ${
+   341→                          deactivated ? 'bg-slate-400' : 'bg-emerald-500'
+   342→                        }`} />
+   343→                      </div>
+   344→                      <div className="min-w-0 flex-1">
+   345→                        <div className="flex items-center gap-2">
+   346→                          <p className="font-medium text-sm truncate">
+   347→                            {u.name?.replace(/ \(Deactivated\)$/, '') || 'No name'}
+   348→                          </p>
+   349→                          {deactivated && (
+   350→                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-rose-500 border-rose-200 dark:border-rose-800 shrink-0">
+   351→                              Inactive
+   352→                            </Badge>
+   353→                          )}
+   354→                        </div>
+   355→                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+   356→                          <Mail className="h-3 w-3" />
+   357→                          <span className="truncate">{u.email}</span>
+   358→                        </div>
+   359→                      </div>
+   360→                    </div>
+   361→
+   362→                    <div className="mt-3 flex items-center justify-between">
+   363→                      <Badge variant="outline" className={`text-[10px] px-2 py-0 ${roleColors[u.role] || roleColors.USER}`}>
+   364→                        <ShieldCheck className="h-3 w-3 mr-1" />
+   365→                        {u.role}
+   366→                      </Badge>
+   367→                      <span className="text-[11px] text-muted-foreground">{relativeDate(u.createdAt)}</span>
+   368→                    </div>
+   369→
+   370→                    {/* Role description + Member since */}
+   371→                    <p className="text-[11px] text-muted-foreground mt-1.5">{roleDescriptions[u.role] || 'Standard user'}</p>
+   372→
+   373→                    <div className="mt-3 pt-3 border-t border-border/50 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+   374→                      {u.profile?.jurisdiction && (
+   375→                        <div className="flex items-center gap-1 truncate">
+   376→                          <MapPin className="h-3 w-3 shrink-0" />
+   377→                          <span className="truncate">{u.profile.jurisdiction}</span>
+   378→                        </div>
+   379→                      )}
+   380→                      {u.profile?.businessType && (
+   381→                        <div className="flex items-center gap-1 truncate">
+   382→                          <Building2 className="h-3 w-3 shrink-0" />
+   383→                          <span className="truncate">{u.profile.businessType}</span>
+   384→                        </div>
+   385→                      )}
+   386→                      <div className="flex items-center gap-1">
+   387→                        <Bell className="h-3 w-3 shrink-0" />
+   388→                        <span>{u._count.subscriptions} subs</span>
+   389→                      </div>
+   390→                      <div className="flex items-center gap-1">
+   391→                        <CalendarDays className="h-3 w-3 shrink-0" />
+   392→                        <span>Since {new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+   393→                      </div>
+   394→                    </div>
+   395→                  </CardContent>
+   396→                </Card>
+   397→              </motion.div>
+   398→            )
+   399→          })}
+   400→        </div>
+   401→      )}
+   402→
+   403→      {/* User Detail Dialog */}
+   404→      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+   405→        <DialogContent className="sm:max-w-md">
+   406→          <DialogHeader>
+   407→            <DialogTitle>User Details</DialogTitle>
+   408→            <DialogDescription>View and manage user account settings</DialogDescription>
+   409→          </DialogHeader>
+   410→          {selectedUser && (
+   411→            <div className="space-y-5">
+   412→              {/* User header with gradient avatar */}
+   413→              <div className="flex items-center gap-4">
+   414→                <div className={`h-14 w-14 rounded-full bg-gradient-to-br ${getAvatarGradient(selectedUser.id)} flex items-center justify-center text-lg font-bold text-white shrink-0 ring-2 ring-primary/20 ring-offset-2 ring-offset-card`}>
+   415→                  {getInitials(selectedUser.name)}
+   416→                </div>
+   417→                <div className="min-w-0">
+   418→                  <p className="font-semibold text-lg truncate">{selectedUser.name?.replace(/ \(Deactivated\)$/, '') || 'No name'}</p>
+   419→                  <div className="flex items-center gap-2 mt-0.5">
+   420→                    <Badge variant="outline" className={`text-xs px-2 py-0 ${roleColors[selectedUser.role] || roleColors.USER}`}>
+   421→                      <ShieldCheck className="h-3 w-3 mr-1" />
+   422→                      {selectedUser.role}
+   423→                    </Badge>
+   424→                    {isDeactivated(selectedUser.name) && (
+   425→                      <Badge variant="outline" className="text-xs px-2 py-0 text-rose-500 border-rose-200 dark:border-rose-800">
+   426→                        Inactive
+   427→                      </Badge>
+   428→                    )}
+   429→                  </div>
+   430→                </div>
+   431→              </div>
+   432→
+   433→              {/* Info grid */}
+   434→              <div className="space-y-3">
+   435→                <div className="flex items-center gap-2 text-sm">
+   436→                  <Mail className="h-4 w-4 text-muted-foreground" />
+   437→                  <span className="text-muted-foreground">Email:</span>
+   438→                  <span className="font-medium">{selectedUser.email}</span>
+   439→                  {selectedUser.emailVerifiedAt && (
+   440→                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 ml-auto">
+   441→                      Verified
+   442→                    </Badge>
+   443→                  )}
+   444→                </div>
+   445→                {selectedUser.phone && (
+   446→                  <div className="flex items-center gap-2 text-sm">
+   447→                    <span className="h-4 w-4 text-muted-foreground flex items-center justify-center text-xs">&#9742;</span>
+   448→                    <span className="text-muted-foreground">Phone:</span>
+   449→                    <span className="font-medium">{selectedUser.phone}</span>
+   450→                  </div>
+   451→                )}
+   452→                {selectedUser.profile?.jurisdiction && (
+   453→                  <div className="flex items-center gap-2 text-sm">
+   454→                    <MapPin className="h-4 w-4 text-muted-foreground" />
+   455→                    <span className="text-muted-foreground">Jurisdiction:</span>
+   456→                    <span className="font-medium">{selectedUser.profile.jurisdiction}</span>
+   457→                  </div>
+   458→                )}
+   459→                {selectedUser.profile?.businessType && (
+   460→                  <div className="flex items-center gap-2 text-sm">
+   461→                    <Building2 className="h-4 w-4 text-muted-foreground" />
+   462→                    <span className="text-muted-foreground">Business:</span>
+   463→                    <span className="font-medium">{selectedUser.profile.businessType}</span>
+   464→                  </div>
+   465→                )}
+   466→                {selectedUser.profile?.employmentStatus && (
+   467→                  <div className="flex items-center gap-2 text-sm">
+   468→                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+   469→                    <span className="text-muted-foreground">Employment:</span>
+   470→                    <span className="font-medium">{selectedUser.profile.employmentStatus}</span>
+   471→                  </div>
+   472→                )}
+   473→                <div className="flex items-center gap-2 text-sm">
+   474→                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+   475→                  <span className="text-muted-foreground">Joined:</span>
+   476→                  <span className="font-medium">{new Date(selectedUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+   477→                </div>
+   478→                <div className="flex gap-4 text-sm">
+   479→                  <div className="flex items-center gap-1.5">
+   480→                    <Bell className="h-4 w-4 text-muted-foreground" />
+   481→                    <span className="text-muted-foreground">Subscriptions:</span>
+   482→                    <span className="font-medium">{selectedUser._count.subscriptions}</span>
+   483→                  </div>
+   484→                  <div className="flex items-center gap-1.5">
+   485→                    <span className="h-2 w-2 rounded-full bg-primary" />
+   486→                    <span className="text-muted-foreground">Notifications:</span>
+   487→                    <span className="font-medium">{selectedUser._count.notifications}</span>
+   488→                  </div>
+   489→                </div>
+   490→              </div>
+   491→
+   492→              {/* Activity Summary */}
+   493→              <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-2">
+   494→                <div className="flex items-center justify-between">
+   495→                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+   496→                    <Activity className="h-3.5 w-3.5" />Recent Activity
+   497→                  </p>
+   498→                  <Button
+   499→                    variant="ghost"
+   500→                    size="sm"
+   501→                    className="text-[10px] h-6 px-2 text-muted-foreground hover:text-foreground"
+   502→                    onClick={() => { setDetailOpen(false); setView('audit-log') }}
+   503→                  >
+   504→                    View All <ArrowRight className="ml-0.5 h-2.5 w-2.5" />
+   505→                  </Button>
+   506→                </div>
+   507→                {userActivity.length === 0 ? (
+   508→                  <p className="text-xs text-muted-foreground text-center py-2">No recent activity</p>
+   509→                ) : (
+   510→                  <div className="space-y-1.5">
+   511→                    {userActivity.map((log: Record<string, unknown>) => (
+   512→                      <div key={log.id as string} className="flex items-center justify-between text-xs">
+   513→                        <div className="flex items-center gap-2">
+   514→                          <span className="font-medium">{log.action as string}</span>
+   515→                          <span className="text-muted-foreground">{log.entityType as string}</span>
+   516→                        </div>
+   517→                        <span className="text-[10px] text-muted-foreground">{relativeDate(log.createdAt as string)}</span>
+   518→                      </div>
+   519→                    ))}
+   520→                  </div>
+   521→                )}
+   522→              </div>
+   523→
+   524→              {/* Role change with confirmation */}
+   525→              <div className="space-y-2">
+   526→                <Label className="text-sm font-medium">Change Role</Label>
+   527→                <Select
+   528→                  value={selectedUser.role}
+   529→                  onValueChange={handleRoleSelect}
+   530→                  disabled={roleMutation.isPending}
+   531→                >
+   532→                  <SelectTrigger className="w-full">
+   533→                    <SelectValue placeholder="Select role" />
+   534→                  </SelectTrigger>
+   535→                  <SelectContent>
+   536→                    <SelectItem value="USER">USER - Standard user</SelectItem>
+   537→                    <SelectItem value="ADMIN">ADMIN - Full system access</SelectItem>
+   538→                    <SelectItem value="ANALYST">ANALYST - Can create & analyze</SelectItem>
+   539→                  </SelectContent>
+   540→                </Select>
+   541→              </div>
+   542→
+   543→              {/* Action Buttons */}
+   544→              <div className="flex gap-2">
+   545→                <Button
+   546→                  variant="outline"
+   547→                  className="flex-1"
+   548→                  onClick={() => {
+   549→                    toast.success('Password reset email sent')
+   550→                  }}
+   551→                >
+   552→                  <KeyRound className="mr-2 h-3.5 w-3.5" />Reset Password
+   553→                </Button>
+   554→                <Button
+   555→                  variant={isDeactivated(selectedUser.name) ? 'default' : 'destructive'}
+   556→                  className="flex-1"
+   557→                  onClick={handleDeactivateToggle}
+   558→                  disabled={activateMutation.isPending}
+   559→                >
+   560→                  {activateMutation.isPending
+   561→                    ? 'Updating...'
+   562→                    : isDeactivated(selectedUser.name)
+   563→                      ? 'Activate User'
+   564→                      : 'Deactivate User'
+   565→                  }
+   566→                </Button>
+   567→              </div>
+   568→            </div>
+   569→          )}
+   570→        </DialogContent>
+   571→      </Dialog>
+   572→
+   573→      {/* Role Change Confirmation Dialog */}
+   574→      <AlertDialog open={roleConfirmOpen} onOpenChange={setRoleConfirmOpen}>
+   575→        <AlertDialogContent>
+   576→          <AlertDialogHeader>
+   577→            <AlertDialogTitle>Confirm Role Change</AlertDialogTitle>
+   578→            <AlertDialogDescription>
+   579→              {selectedUser ? getRoleChangeConfirmMsg(pendingRole, selectedUser.name?.replace(/ \(Deactivated\)$/, '') || selectedUser.email) : ''}
+   580→            </AlertDialogDescription>
+   581→          </AlertDialogHeader>
+   582→          <AlertDialogFooter>
+   583→            <AlertDialogCancel disabled={roleMutation.isPending}>Cancel</AlertDialogCancel>
+   584→            <AlertDialogAction
+   585→              onClick={confirmRoleChange}
+   586→              disabled={roleMutation.isPending}
+   587→              className="bg-primary text-primary-foreground hover:bg-primary/90"
+   588→            >
+   589→              {roleMutation.isPending ? 'Updating...' : 'Confirm Change'}
+   590→            </AlertDialogAction>
+   591→          </AlertDialogFooter>
+   592→        </AlertDialogContent>
+   593→      </AlertDialog>
+   594→
+   595→      {/* Deactivate/Activate Confirmation Dialog */}
+   596→      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+   597→        <AlertDialogContent>
+   598→          <AlertDialogHeader>
+   599→            <AlertDialogTitle>
+   600→              {pendingAction === 'deactivate' ? 'Deactivate User' : 'Activate User'}
+   601→            </AlertDialogTitle>
+   602→            <AlertDialogDescription>
+   603→              {pendingAction === 'deactivate'
+   604→                ? `Are you sure you want to deactivate ${selectedUser?.name?.replace(/ \(Deactivated\)$/, '') || selectedUser?.email || 'this user'}? They will lose access to the platform.`
+   605→                : `Are you sure you want to activate ${selectedUser?.name?.replace(/ \(Deactivated\)$/, '') || selectedUser?.email || 'this user'}? They will regain access to the platform.`
+   606→              }
+   607→            </AlertDialogDescription>
+   608→          </AlertDialogHeader>
+   609→          <AlertDialogFooter>
+   610→            <AlertDialogCancel disabled={activateMutation.isPending}>Cancel</AlertDialogCancel>
+   611→            <AlertDialogAction
+   612→              onClick={confirmAction}
+   613→              disabled={activateMutation.isPending}
+   614→              className={pendingAction === 'deactivate' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+   615→            >
+   616→              {activateMutation.isPending
+   617→                ? 'Updating...'
+   618→                : pendingAction === 'deactivate'
+   619→                  ? 'Deactivate'
+   620→                  : 'Activate'
+   621→              }
+   622→            </AlertDialogAction>
+   623→          </AlertDialogFooter>
+   624→        </AlertDialogContent>
+   625→      </AlertDialog>
+   626→    </motion.div>
+   627→  )
+   628→}
+   629→

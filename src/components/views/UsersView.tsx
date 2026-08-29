@@ -30,6 +30,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Users, Search, Mail, MapPin, Building2, Briefcase, Bell, CalendarDays, ShieldCheck, Activity, ArrowRight, KeyRound } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 
 interface UserProfile {
   jurisdiction: string
@@ -123,6 +124,7 @@ function getRoleChangeConfirmMsg(role: string, userName: string): string {
 
 export default function UsersView() {
   const queryClient = useQueryClient()
+  const user = useAppStore(s => s.user)
   const setView = useAppStore(s => s.setView)
   const [search, setSearch] = useState('')
   const [selectedUser, setSelectedUser] = useState<UserItem | null>(null)
@@ -138,9 +140,10 @@ export default function UsersView() {
       const params = search ? `?search=${encodeURIComponent(search)}` : ''
       return fetch(`/api/users${params}`).then(r => r.json())
     },
+    enabled: !!user,
   })
 
-  const users: UserItem[] = data?.users || []
+  const users: UserItem[] = safeArray<UserItem>(data?.users)
 
   // User statistics
   const stats = useMemo(() => {
@@ -158,13 +161,14 @@ export default function UsersView() {
   // Fetch audit logs for the selected user (client-side filter)
   const { data: auditData } = useQuery({
     queryKey: ['audit-logs'],
-    enabled: detailOpen && !!selectedUser,
+    enabled: !!user && detailOpen && !!selectedUser,
     queryFn: () => fetch('/api/audit-logs?limit=50').then(r => r.json()),
   })
 
   const userActivity = useMemo(() => {
-    if (!auditData?.logs || !selectedUser) return []
-    return auditData.logs
+    const logs = safeArray<Record<string, unknown>>(auditData?.logs)
+    if (!selectedUser) return []
+    return logs
       .filter((log: Record<string, unknown>) => {
         const actor = log.actor as Record<string, unknown> | null
         return actor?.id === selectedUser.id

@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { GitCompare, Plus, Sparkles, ArrowRight, Eye, CheckCircle2, Clock, XCircle, Loader2, ChevronDown, ChevronUp, FileText, AlertTriangle, ChevronRight } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 
 const statusIcon: Record<string, React.ReactNode> = {
   PENDING: <Clock className="h-4 w-4 text-amber-500" />,
@@ -99,6 +101,7 @@ const processingStatusColors: Record<string, string> = {
 
 export default function ComparisonsView() {
   const queryClient = useQueryClient()
+  const { user } = useAppStore()
   const [selectedComparison, setSelectedComparison] = useState<Record<string, unknown> | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [step, setStep] = useState(1)
@@ -107,15 +110,19 @@ export default function ComparisonsView() {
   const [comparisonTitle, setComparisonTitle] = useState('')
   const [allExpanded, setAllExpanded] = useState(false)
 
-  const { data: comparisons = [], isLoading } = useQuery({
+  const { data: comparisonsData, isLoading } = useQuery({
     queryKey: ['comparisons'],
     queryFn: () => fetch('/api/comparisons').then(r => r.json()),
+    enabled: !!user,
   })
+  const comparisons = safeArray<Record<string, unknown>>(comparisonsData)
 
-  const { data: documents = [] } = useQuery({
+  const { data: documentsData } = useQuery({
     queryKey: ['documents'],
     queryFn: () => fetch('/api/documents').then(r => r.json()),
+    enabled: !!user,
   })
+  const documents = safeArray<Record<string, unknown>>(documentsData)
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -223,7 +230,7 @@ export default function ComparisonsView() {
     createMutation.mutate()
   }
 
-  const changes = (selectedComparison?.changes as Record<string, unknown>[]) || []
+  const changes = safeArray<Record<string, unknown>>(selectedComparison?.changes)
 
   // Detail dialog: group changes by type
   const groupedChanges = useMemo(() => {

@@ -14,11 +14,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Plus, FolderOpen, Tags, Layers, FileText, Users } from 'lucide-react'
+import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
 const mi = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
 
 export default function CategoriesView() {
+  const user = useAppStore(s => s.user)
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [createType, setCreateType] = useState<'category' | 'sector'>('category')
@@ -28,10 +31,11 @@ export default function CategoriesView() {
   const { data, isLoading } = useQuery({
     queryKey: ['categories-admin'],
     queryFn: () => fetch('/api/categories').then(r => r.json()),
+    enabled: !!user,
   })
 
-  const categories: Record<string, unknown>[] = data?.categories || []
-  const sectors: Record<string, unknown>[] = data?.sectors || []
+  const categories = safeArray<Record<string, unknown>>(data?.categories)
+  const sectors = safeArray<Record<string, unknown>>(data?.sectors)
 
   const createMutation = useMutation({
     mutationFn: async () => {

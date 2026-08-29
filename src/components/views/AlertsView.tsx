@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -150,10 +151,12 @@ export default function AlertsView() {
 
   // ── Queries ──────────────────────────────────────────────────────
 
-  const { data: alerts = [], isLoading } = useQuery<Alert[]>({
+  const { data: alertsData, isLoading } = useQuery<Alert[]>({
     queryKey: ['alerts', statusFilter],
     queryFn: () => fetch(`/api/alerts${statusFilter ? `?status=${statusFilter}` : ''}`).then(r => r.json()),
+    enabled: !!user,
   })
+  const alerts = safeArray<Alert>(alertsData)
 
   // ── Counts for filter badges ─────────────────────────────────────
 

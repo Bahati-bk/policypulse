@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,16 +26,19 @@ export default function ProfileView() {
   const { data: profile, isLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: () => fetch('/api/profile').then(r => r.json()),
+    enabled: !!user,
   })
 
   const { data: subsData } = useQuery({
     queryKey: ['subscriptions'],
     queryFn: () => fetch('/api/subscriptions').then(r => r.json()),
+    enabled: !!user,
   })
 
   const { data: categoriesData } = useQuery({
     queryKey: ['categories-list'],
     queryFn: () => fetch('/api/categories').then(r => r.json()),
+    enabled: !!user,
   })
 
   const formData = useMemo(() => {
@@ -72,10 +76,10 @@ export default function ProfileView() {
     onError: () => toast.error('Update failed'),
   })
 
-  const sectors = (subsData?.sectors || [])
-  const categories = (categoriesData?.categories || [])
+  const sectors = safeArray<Record<string, unknown>>(subsData?.sectors)
+  const categories = safeArray<Record<string, unknown>>(categoriesData?.categories)
   const userSectorIds = sectors.map((s: Record<string, unknown>) => (s.sector as Record<string, unknown>)?.id)
-  const userSubIds = ((subsData?.subscriptions || []) as Array<Record<string, unknown>>).map(s => s.referenceId)
+  const userSubIds = safeArray<Record<string, unknown>>(subsData?.subscriptions).map(s => s.referenceId)
 
   function toggleSector(sectorId: string) {
     const isActive = userSectorIds.includes(sectorId)
@@ -180,7 +184,7 @@ export default function ProfileView() {
             </CardHeader>
             <CardContent>
               <div className="max-h-52 overflow-y-auto scrollbar-thin space-y-1">
-                {categoriesData?.sectors?.map((sector: Record<string, unknown>) => {
+                {safeArray<Record<string, unknown>>(categoriesData?.sectors).map((sector: Record<string, unknown>) => {
                   const isSubbed = userSectorIds.includes(sector.id as string)
                   return (
                     <label key={sector.id as string} className="flex items-center gap-3 py-2 px-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors">

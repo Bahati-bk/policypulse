@@ -22,6 +22,8 @@ import {
 } from '@/components/ui/select'
 import { BookOpen, Search, Filter, FileText, Calendar, Building2, Tag, Plus, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
+import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 
 const policyTypeColors: Record<string, string> = {
   ACT: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400',
@@ -70,6 +72,7 @@ const POLICY_TYPES = ['ACT', 'REGULATION', 'GUIDELINE', 'POLICY', 'DIRECTIVE']
 
 export default function PoliciesView() {
   const queryClient = useQueryClient()
+  const user = useAppStore((s) => s.user)
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('all')
   const [jurisdictionFilter, setJurisdictionFilter] = useState<string>('all')
@@ -97,17 +100,23 @@ export default function PoliciesView() {
     setFormSourceUrl('')
   }, [])
 
-  const { data: policies = [], isLoading } = useQuery<Policy[]>({
+  const { data: policiesData, isLoading } = useQuery<Policy[]>({
     queryKey: ['policies'],
     queryFn: () => fetch('/api/policies').then(r => r.json()),
+    enabled: !!user,
   })
+  const policies = safeArray<Policy>(policiesData)
 
   const { data: categoriesData } = useQuery<{ categories: Category[] }>({
     queryKey: ['categories'],
     queryFn: () => fetch('/api/categories').then(r => r.json()),
+    enabled: !!user,
   })
-
-  const categories = categoriesData?.categories ?? []
+  const categories = safeArray<Category>(
+    categoriesData && typeof categoriesData === 'object' && !Array.isArray(categoriesData) && 'categories' in categoriesData
+      ? categoriesData.categories
+      : undefined
+  )
 
   const createMutation = useMutation({
     mutationFn: async (data: {
@@ -168,14 +177,19 @@ export default function PoliciesView() {
     })
   }, [policies, search, typeFilter, jurisdictionFilter])
 
-  const { data: policyDetail } = useQuery<Policy & { documents: PolicyDocument[] }>({
-    queryKey: ['policy-detail', selectedPolicy?.id],
+  const selectedPolicyId = selectedPolicy?.id ?? null
+  const { data: policyDetailData } = useQuery<Policy & { documents: PolicyDocument[] }>({
+    queryKey: ['policy-detail', selectedPolicyId],
     queryFn: () =>
-      fetch(`/api/policies/${selectedPolicy!.id}`).then(r => r.json()),
-    enabled: !!selectedPolicy,
+      fetch(`/api/policies/${selectedPolicyId!}`).then(r => r.json()),
+    enabled: !!user && !!selectedPolicyId,
   })
-
-  const displayPolicy = selectedPolicy && policyDetail ? policyDetail : selectedPolicy
+  const policyDetailDocuments = safeArray<PolicyDocument>(
+    policyDetailData && typeof policyDetailData === 'object' && !Array.isArray(policyDetailData) && 'documents' in policyDetailData
+      ? policyDetailData.documents
+      : undefined
+  )
+  const displayPolicy = selectedPolicy && policyDetailData && typeof policyDetailData === 'object' && !Array.isArray(policyDetailData) && !('error' in policyDetailData) ? policyDetailData : selectedPolicy
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -498,11 +512,11 @@ export default function PoliciesView() {
                 )}
 
                 {/* Documents List */}
-                {policyDetail?.documents && policyDetail.documents.length > 0 && (
+                {policyDetailDocuments.length > 0 && (
                   <div>
-                    <p className="text-sm font-medium mb-2">Documents ({policyDetail.documents.length})</p>
+                    <p className="text-sm font-medium mb-2">Documents ({policyDetailDocuments.length})</p>
                     <div className="max-h-96 overflow-y-auto scrollbar-thin space-y-2">
-                      {policyDetail.documents.map((doc) => (
+                      {policyDetailDocuments.map((doc) => (
                         <div
                           key={doc.id}
                           className="flex items-center justify-between gap-3 rounded-lg border border-border/50 p-3"
@@ -527,7 +541,7 @@ export default function PoliciesView() {
                   </div>
                 )}
 
-                {!policyDetail?.documents && (
+                {policyDetailDocuments.length === 0 && policyDetailData && (
                   <div className="flex justify-center py-4">
                     <Skeleton className="h-8 w-32" />
                   </div>

@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ChevronLeft, ChevronRight, Search, Download } from 'lucide-react'
+import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 import { format } from 'date-fns'
 
 const actionColors: Record<string, string> = {
@@ -29,9 +31,10 @@ const actionColors: Record<string, string> = {
 }
 
 export default function AuditLogView() {
+  const user = useAppStore(s => s.user)
   const [page, setPage] = useState(1)
-  const [actionFilter, setActionFilter] = useState('')
-  const [entityFilter, setEntityFilter] = useState('')
+  const [actionFilter, setActionFilter] = useState('all')
+  const [entityFilter, setEntityFilter] = useState('all')
   const [search, setSearch] = useState('')
 
   const debouncedSearch = search
@@ -40,14 +43,15 @@ export default function AuditLogView() {
     queryKey: ['audit-logs', page, actionFilter, entityFilter, debouncedSearch],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), limit: '15' })
-      if (actionFilter) params.set('action', actionFilter)
-      if (entityFilter) params.set('entityType', entityFilter)
+      if (actionFilter && actionFilter !== 'all') params.set('action', actionFilter)
+      if (entityFilter && entityFilter !== 'all') params.set('entityType', entityFilter)
       if (debouncedSearch) params.set('search', debouncedSearch)
       return fetch(`/api/audit-logs?${params}`).then(r => r.json())
     },
+    enabled: !!user,
   })
 
-  const logs = data?.logs || []
+  const logs = safeArray<Record<string, unknown>>(data?.logs)
   const totalPages = data?.totalPages || 1
 
   function exportCSV() {
@@ -95,7 +99,7 @@ export default function AuditLogView() {
         <Select value={actionFilter} onValueChange={v => { setActionFilter(v); setPage(1) }}>
           <SelectTrigger className="w-40"><SelectValue placeholder="All Actions" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Actions</SelectItem>
+            <SelectItem value="all">All Actions</SelectItem>
             {['CREATE', 'UPDATE', 'DELETE', 'ANALYZE', 'APPROVE', 'REJECT', 'SEND', 'LOGIN', 'VIEW', 'SEED', 'PROCESS'].map(a => (
               <SelectItem key={a} value={a}>{a}</SelectItem>
             ))}
@@ -104,7 +108,7 @@ export default function AuditLogView() {
         <Select value={entityFilter} onValueChange={v => { setEntityFilter(v); setPage(1) }}>
           <SelectTrigger className="w-48"><SelectValue placeholder="All Entity Types" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Entity Types</SelectItem>
+            <SelectItem value="all">All Entity Types</SelectItem>
             {['PolicyDocument', 'DocumentComparison', 'PolicyChange', 'Alert', 'User', 'UserProfile', 'Sector', 'PolicyCategory', 'Notification', 'System'].map(e => (
               <SelectItem key={e} value={e}>{e}</SelectItem>
             ))}
