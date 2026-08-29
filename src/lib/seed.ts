@@ -86,6 +86,7 @@ export async function seedDatabase() {
     create: { userId: regularUser.id, sectorId: sectorRecords[2].id },
   })
 
+  // ---- Categories ----
   const catTax = await db.policyCategory.upsert({
     where: { name: 'Tax Policy' },
     update: {},
@@ -101,6 +102,264 @@ export async function seedDatabase() {
     update: {},
     create: { name: 'Data Protection', slug: 'data-protection', description: 'Data protection and privacy regulations' },
   })
+  const catEnvironment = await db.policyCategory.upsert({
+    where: { name: 'Environment' },
+    update: {},
+    create: { name: 'Environment', slug: 'environment', description: 'Environmental protection and natural resource management' },
+  })
+  const catFinance = await db.policyCategory.upsert({
+    where: { name: 'Financial Services' },
+    update: {},
+    create: { name: 'Financial Services', slug: 'financial-services', description: 'Banking, capital markets, and financial regulation' },
+  })
+  const catHealth = await db.policyCategory.upsert({
+    where: { name: 'Public Health' },
+    update: {},
+    create: { name: 'Public Health', slug: 'public-health', description: 'Healthcare, pharmaceutical, and public health regulations' },
+  })
+  const catTechnology = await db.policyCategory.upsert({
+    where: { name: 'Technology & Digital' },
+    update: {},
+    create: { name: 'Technology & Digital', slug: 'technology-digital', description: 'ICT, electronic transactions, and digital economy regulations' },
+  })
+  const catTrade = await db.policyCategory.upsert({
+    where: { name: 'Trade & Investment' },
+    update: {},
+    create: { name: 'Trade & Investment', slug: 'trade-investment', description: 'Trade policy, investment regulations, and free zones' },
+  })
+  const catGovernance = await db.policyCategory.upsert({
+    where: { name: 'Governance & Anti-Corruption' },
+    update: {},
+    create: { name: 'Governance & Anti-Corruption', slug: 'governance-anti-corruption', description: 'Public accountability, leadership code, and anti-corruption laws' },
+  })
+  const catEducation = await db.policyCategory.upsert({
+    where: { name: 'Education' },
+    update: {},
+    create: { name: 'Education', slug: 'education', description: 'Education policy and regulations' },
+  })
+  const catAgriculture = await db.policyCategory.upsert({
+    where: { name: 'Agriculture' },
+    update: {},
+    create: { name: 'Agriculture', slug: 'agriculture', description: 'Agricultural policy and food security regulations' },
+  })
+  const catHumanRights = await db.policyCategory.upsert({
+    where: { name: 'Human Rights' },
+    update: {},
+    create: { name: 'Human Rights', slug: 'human-rights', description: 'Human rights, equality, and constitutional protections' },
+  })
+
+  // ---- Seed 20+ Real Ugandan Policies/Laws ----
+  const ugandanPolicies = [
+    {
+      id: 'policy-income-tax',
+      title: 'Income Tax Act (Cap. 340)',
+      description: 'Provides for the imposition of income tax on income of persons and companies in Uganda, including withholding tax provisions.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catTax.id,
+      effectiveDate: new Date('1997-07-01'), sourceUrl: 'https://ulii.org/akn/ug/act/1997/11/eng@2024-12-23',
+    },
+    {
+      id: 'policy-vat',
+      title: 'Value Added Tax Act (Cap. 349)',
+      description: 'Imposes value added tax on supplies of goods and services made in Uganda and on imports into Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catTax.id,
+      effectiveDate: new Date('2014-09-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2014/14',
+    },
+    {
+      id: 'policy-data-protection',
+      title: 'Data Protection and Privacy Act, 2019',
+      description: 'Establishes the legal framework for the protection of personal data and regulates the collection, processing, and sharing of personal information.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catDataProtection.id,
+      effectiveDate: new Date('2019-03-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2019/11',
+    },
+    {
+      id: 'policy-employment',
+      title: 'Employment Act, 2006',
+      description: 'Consolidates the law relating to employment, regulation of terms and conditions of employment, and protection of workers in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catEmployment.id,
+      effectiveDate: new Date('2006-06-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2006/6',
+    },
+    {
+      id: 'policy-nema',
+      title: 'National Environment Act, 2019',
+      description: 'Repeals and replaces the National Environment Statute 1995. Provides for sustainable management of the environment, establishment of NEMA, and environmental impact assessments. First African law to recognize rights of Nature.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catEnvironment.id,
+      effectiveDate: new Date('2019-05-16'), sourceUrl: 'https://ulii.org/akn/ug/act/2019/5/eng@2019-05-16',
+    },
+    {
+      id: 'policy-fia',
+      title: 'Financial Institutions Act, 2004 (Amended 2016)',
+      description: 'Regulates financial institutions including banks, credit institutions, and microfinance deposit-taking institutions in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catFinance.id,
+      effectiveDate: new Date('2004-12-31'), sourceUrl: 'https://ulii.org/akn/ug/act/2004/13',
+    },
+    {
+      id: 'policy-cma',
+      title: 'Capital Markets Authority Act, 1996',
+      description: 'Establishes the Capital Markets Authority and provides for the development and regulation of capital markets in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catFinance.id,
+      effectiveDate: new Date('1996-01-01'), sourceUrl: 'https://ulii.org/akn/ug/act/1996/4',
+    },
+    {
+      id: 'policy-public-health',
+      title: 'Public Health Act, 2019',
+      description: 'Provides for public health, prevention of diseases, and the promotion of health services delivery in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catHealth.id,
+      effectiveDate: new Date('2019-05-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2019/15',
+    },
+    {
+      id: 'policy-eta',
+      title: 'Electronic Transactions Act, 2011',
+      description: 'Provides for the legal recognition of electronic transactions, electronic signatures, and the regulation of electronic commerce in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catTechnology.id,
+      effectiveDate: new Date('2011-12-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2011/9',
+    },
+    {
+      id: 'policy-computer-misuse',
+      title: 'Computer Misuse Act, 2011',
+      description: 'Makes provision for the safety and security of electronic transactions and information systems, and provides for offenses relating to computers.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catTechnology.id,
+      effectiveDate: new Date('2011-12-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2011/8',
+    },
+    {
+      id: 'policy-free-zones',
+      title: 'Uganda Free Zones Act, 2014',
+      description: 'Provides for the establishment, development, and management of free zones for the promotion of export-oriented investment and economic growth.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catTrade.id,
+      effectiveDate: new Date('2014-07-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2014/12',
+    },
+    {
+      id: 'policy-uci',
+      title: 'Uganda Citizenship and Immigration Act, 2009',
+      description: 'Consolidates the law relating to citizenship, immigration, and the control of foreigners in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catGovernance.id,
+      effectiveDate: new Date('2009-07-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2009/9',
+    },
+    {
+      id: 'policy-anti-corruption',
+      title: 'Anti-Corruption Act, 2009 (Amended 2015)',
+      description: 'Provides for the prevention, detection, investigation, and punishment of corruption, and for other related matters.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catGovernance.id,
+      effectiveDate: new Date('2009-04-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2009/6',
+    },
+    {
+      id: 'policy-aml',
+      title: 'Anti-Money Laundering Act, 2013 (Amended 2017)',
+      description: 'Provides for offenses relating to money laundering and financing of terrorism, and establishes the Financial Intelligence Authority.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catFinance.id,
+      effectiveDate: new Date('2013-10-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2013/13',
+    },
+    {
+      id: 'policy-uaa',
+      title: 'Uganda Wildlife Act, 2019',
+      description: 'Provides for the conservation and sustainable management of wildlife and to give effect to relevant international conventions.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catEnvironment.id,
+      effectiveDate: new Date('2019-05-17'), sourceUrl: 'https://ulii.org/akn/ug/act/2019/13',
+    },
+    {
+      id: 'policy-land',
+      title: 'Land Act, 1998 (Amended 2010)',
+      description: 'Provides for the tenure, ownership and management of land, and to amend and consolidate the law relating to tenure, ownership and management of land in Uganda.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catGovernance.id,
+      effectiveDate: new Date('1998-07-02'), sourceUrl: 'https://ulii.org/akn/ug/act/1998/16',
+    },
+    {
+      id: 'policy-education-act',
+      title: 'Education Act, 2008',
+      description: 'Provides for a functions and responsibilities of persons and institutions in education at all levels, and to make provision for the regulation and continuous quality improvement of education.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catEducation.id,
+      effectiveDate: new Date('2008-09-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2008/12',
+    },
+    {
+      id: 'policy-pfma',
+      title: 'Public Finance Management Act, 2015 (Amended 2021)',
+      description: 'Provides for the management of public finances and the prudent use of resources, and for related matters.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catFinance.id,
+      effectiveDate: new Date('2015-07-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2015/12',
+    },
+    {
+      id: 'policy-uaea',
+      title: 'Uganda Atomic Energy Act, 2008',
+      description: 'Provides for the peaceful application of atomic energy, establishment of the Atomic Energy Council, and radiation protection.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catHealth.id,
+      effectiveDate: new Date('2008-11-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2008/11',
+    },
+    {
+      id: 'policy-nds',
+      title: 'National Development Plan III (2020/21–2024/25)',
+      description: 'Uganda\'s medium-term development blueprint focused on sustainable economic growth, job creation, and inclusive development.',
+      policyType: 'POLICY', jurisdiction: 'Uganda',
+      issuingAuthority: 'National Planning Authority', categoryId: catGovernance.id,
+      effectiveDate: new Date('2020-06-01'), sourceUrl: 'https://npa.go.ug/ndp-iii',
+    },
+    {
+      id: 'policy-pdm',
+      title: 'Parliamentary Democracy Act (Amendment), 2025',
+      description: 'Amendment to strengthen parliamentary oversight functions and democratic governance.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catGovernance.id,
+      effectiveDate: new Date('2025-01-01'), sourceUrl: 'https://ulii.org',
+    },
+    {
+      id: 'policy-digital-tax',
+      title: 'Digital Services Tax Regulations, 2024',
+      description: 'Imposes tax on digital services provided by non-resident persons to users in Uganda, including online advertising and streaming services.',
+      policyType: 'REGULATION', jurisdiction: 'Uganda',
+      issuingAuthority: 'Uganda Revenue Authority', categoryId: catTax.id,
+      effectiveDate: new Date('2024-07-01'), sourceUrl: 'https://ura.go.ug',
+    },
+    {
+      id: 'policy-ndpe',
+      title: 'National Data Protection and Privacy (Electronic Communications) Regulations, 2023',
+      description: 'Regulates data protection in the electronic communications sector, including requirements for telecom service providers.',
+      policyType: 'REGULATION', jurisdiction: 'Uganda',
+      issuingAuthority: 'National Information Technology Authority', categoryId: catDataProtection.id,
+      effectiveDate: new Date('2023-09-01'), sourceUrl: 'https://nita.go.ug',
+    },
+    {
+      id: 'policy-osc',
+      title: 'Online Substances Control Guidelines, 2024',
+      description: 'Guidelines for controlling the online sale and distribution of regulated substances including pharmaceuticals and psychotropic substances.',
+      policyType: 'GUIDELINE', jurisdiction: 'Uganda',
+      issuingAuthority: 'Ministry of Health', categoryId: catHealth.id,
+      effectiveDate: new Date('2024-03-01'), sourceUrl: 'https://health.go.ug',
+    },
+    {
+      id: 'policy-ndc',
+      title: 'National Climate Change Act, 2021',
+      description: 'Provides for a framework for climate change response actions, the establishment of the National Climate Change Council, and related matters.',
+      policyType: 'ACT', jurisdiction: 'Uganda',
+      issuingAuthority: 'Parliament of Uganda', categoryId: catEnvironment.id,
+      effectiveDate: new Date('2021-07-01'), sourceUrl: 'https://ulii.org/akn/ug/act/2021/2',
+    },
+  ]
+
+  for (const p of ugandanPolicies) {
+    await db.policy.upsert({
+      where: { id: p.id },
+      update: {},
+      create: p,
+    })
+  }
+  console.log(`Seeded ${ugandanPolicies.length} Ugandan policies`)
 
   await db.subscription.upsert({
     where: { id: `sub-${regularUser.id.slice(0, 10)}-cat-${catTax.id.slice(0, 10)}` },
@@ -116,19 +375,10 @@ export async function seedDatabase() {
   const uploadDir = '/home/z/my-project/upload'
   if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 
-  const policy1 = await db.policy.upsert({
-    where: { id: 'policy-income-tax' },
-    update: {},
-    create: {
-      id: 'policy-income-tax',
-      title: 'Income Tax (Amendment) Act, 2024',
-      description: 'Amendments to the Income Tax Act relating to withholding tax rates and thresholds',
-      policyType: 'ACT',
-      jurisdiction: 'Uganda',
-      issuingAuthority: 'Parliament of Uganda',
-      categoryId: catTax.id,
-    },
-  })
+  // Income Tax Amendment - use already-seeded policy
+  const policy1 = await db.policy.findUniqueOrThrow({ where: { id: 'policy-income-tax' } })
+  const policy2 = await db.policy.findUniqueOrThrow({ where: { id: 'policy-data-protection' } })
+  const policy3 = await db.policy.findUniqueOrThrow({ where: { id: 'policy-employment' } })
 
   const oldText1 = `INCOME TAX ACT (CHAPTER 340)
 
@@ -191,21 +441,7 @@ Section 118: Withholding tax on payments to residents
     },
   })
 
-  // Second policy
-  const policy2 = await db.policy.upsert({
-    where: { id: 'policy-data-protection' },
-    update: {},
-    create: {
-      id: 'policy-data-protection',
-      title: 'Data Protection and Privacy Act, 2024 Amendment',
-      description: 'Amendments to data protection requirements for digital businesses',
-      policyType: 'ACT',
-      jurisdiction: 'Uganda',
-      issuingAuthority: 'Parliament of Uganda',
-      categoryId: catDataProtection.id,
-    },
-  })
-
+  
   const oldText2 = `DATA PROTECTION AND PRIVACY ACT
 
 Section 23: Registration of Data Controllers
@@ -256,21 +492,7 @@ Section 23: Registration of Data Controllers
     },
   })
 
-  // Third policy
-  const policy3 = await db.policy.upsert({
-    where: { id: 'policy-employment' },
-    update: {},
-    create: {
-      id: 'policy-employment',
-      title: 'Employment (Amendment) Regulations, 2024',
-      description: 'Updates to minimum wage and working conditions',
-      policyType: 'REGULATION',
-      jurisdiction: 'Uganda',
-      issuingAuthority: 'Ministry of Gender, Labour and Social Development',
-      categoryId: catEmployment.id,
-    },
-  })
-
+  
   const oldText3 = `EMPLOYMENT REGULATIONS
 
 Section 8: Minimum Wage
