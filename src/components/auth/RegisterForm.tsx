@@ -95,7 +95,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   const setUser = useAppStore(s => s.setUser)
   const queryClient = useQueryClient()
 
-  const { register, handleSubmit, formState: { errors } } = useForm<RegisterData>({    resolver: zodResolver(registerSchema),
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<RegisterData>({    resolver: zodResolver(registerSchema),
     defaultValues: { termsAccepted: false },
   })
 
@@ -227,10 +227,11 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
                   <Checkbox
                     checked={termsAccepted}
                     onCheckedChange={(checked) => {
-                      setTermsAccepted(checked === true)
+                      const val = checked === true
+                      setTermsAccepted(val)
+                      setValue('termsAccepted', val, { shouldValidate: true })
                     }}
                     className="h-4 w-4 mt-0.5"
-                    {...register('termsAccepted')}
                   />
                   <span className="text-sm text-muted-foreground group-hover:text-foreground transition-colors leading-relaxed select-none">
                     I agree to the{' '}
@@ -280,27 +281,7 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
               )}
             </form>
 
-            {/* Divider */}
-            <div className="relative pt-1">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border/50" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-transparent px-3 text-xs text-muted-foreground uppercase tracking-wider">
-                  Demo
-                </span>
-              </div>
-            </div>
 
-            {/* Demo hint */}
-            <div className="rounded-lg border border-border/40 bg-muted/50 p-4 border-l-2 border-l-primary">
-              <p className="text-xs text-muted-foreground">
-                <span className="font-semibold text-foreground/80">Tip:</span>{' '}
-                Use demo credentials{' '}
-                <span className="font-mono text-foreground/70">admin@policypulse.ug / password123</span>{' '}
-                to explore all features.
-              </p>
-            </div>
           </CardContent>
         </Card>
     </motion.div>
