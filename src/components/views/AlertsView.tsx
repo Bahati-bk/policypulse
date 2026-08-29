@@ -31,7 +31,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
   Bell, CheckCircle2, XCircle, Send, AlertTriangle, Shield, Users,
-  ClipboardList, Search, Download, Plus, FileText, Zap,
+  ClipboardList, Search, Download, Plus, FileText, Zap, Phone, MessageSquare,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -147,6 +147,8 @@ export default function AlertsView() {
   const [rejectDialog, setRejectDialog] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [ussdDialog, setUssdDialog] = useState<string | null>(null)
+  const [ussdPhones, setUssdPhones] = useState('')
   const [form, setForm] = useState<FormData>(emptyForm)
 
   // ── Queries ──────────────────────────────────────────────────────
@@ -240,9 +242,45 @@ export default function AlertsView() {
     onError: (e) => toast.error(e.message),
   })
 
+  const ussdMutation = useMutation({
+    mutationFn: async ({ alertId, phoneNumbers, message }: { alertId: string; phoneNumbers: string[]; message: string }) => {
+      const res = await fetch('/api/ussd/send-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumbers, message, alertId }),
+      })
+      if (!res.ok) {
+        const d = await res.json()
+        throw new Error(d.error || 'Failed to send USSD')
+      }
+      return res.json()
+    },
+    onSuccess: (data) => {
+      toast.success(`USSD alert queued to ${data.messageCount} recipient(s) via *384*17818#`)
+      setUssdDialog(null)
+      setUssdPhones('')
+    },
+    onError: (e) => toast.error(e.message),
+  })
+
   // ── Helpers ──────────────────────────────────────────────────────
 
   const isAdmin = user?.role === 'ADMIN'
+
+  function handleUssdSend() {
+    if (!selectedAlert) return
+    const phones = ussdPhones
+      .split(/[,\n;\s]+/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0)
+    if (phones.length === 0) {
+      toast.error('Enter at least one phone number')
+      return
+    }
+    const message = `[PolicyPulse] ${selectedAlert.title}
+${selectedAlert.summary || ''}`.trim()
+    ussdMutation.mutate({ alertId: selectedAlert.id, phoneNumbers: phones, message })
+  }
 
   const filtered = alerts.filter((alert) => {
     if (!search) return true
@@ -664,6 +702,9 @@ export default function AlertsView() {
               <Shield className="h-5 w-5 text-primary" />{selectedAlert?.title}
             </DialogTitle>
             <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs text-muted-foreground">
+                {selectedAlert?.createdAt ? format(new Date(selectedAlert.createdAt), 'MMM d, yyyy h:mm a') : ''}
+              </span>
               <Badge variant="outline" className={statusColors[selectedAlert?.status || 'DRAFT']}>
                 {(selectedAlert?.status || '').replace(/_/g, ' ')}
               </Badge>
@@ -734,6 +775,14 @@ export default function AlertsView() {
                         <Send className="mr-2 h-4 w-4" />{sendMutation.isPending ? 'Sending...' : 'Send Notifications'}
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      onClick={() => setUssdDialog(selectedAlert.id)}
+                      className="gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      <Phone className="h-4 w-4" />
+                      Send via USSD (*384*17818#)
+                    </Button>
                   </div>
                 )}
 
@@ -746,6 +795,57 @@ export default function AlertsView() {
               </div>
             </ScrollArea>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── USSD Send Dialog ── */}
+      <Dialog open={!!ussdDialog} onOpenChange={(open) => { if (!open) { setUssdDialog(null); setUssdPhones('') } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5 text-emerald-500" />
+              Send via USSD
+            </DialogTitle>
+            <DialogDescription>
+              Send this alert via USSD shortcode <span className="font-mono font-semibold text-foreground">*384*17818#</span> to Uganda phone numbers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+              <div className="flex items-center gap-2 mb-1">
+                <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Alert Preview</p>
+              </div>
+              <p className="text-xs font-medium">{selectedAlert?.title}</p>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{selectedAlert?.summary || 'No summary'}</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ussd-phones">Phone Numbers</Label>
+              <Textarea
+                id="ussd-phones"
+                placeholder={"Enter phone numbers, one per line or comma-separated\ne.g. 256700000000, 0771234567"}
+                value={ussdPhones}
+                onChange={e => setUssdPhones(e.target.value)}
+                rows={4}
+                className="font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Supports formats: 256..., +256..., 07..., separated by commas or newlines
+              </p>
+            </div>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => { setUssdDialog(null); setUssdPhones('') }}>Cancel</Button>
+            <Button
+              onClick={handleUssdSend}
+              disabled={ussdMutation.isPending || !ussdPhones.trim()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <Phone className="mr-2 h-4 w-4" />
+              {ussdMutation.isPending ? 'Sending...' : 'Send USSD Alert'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 

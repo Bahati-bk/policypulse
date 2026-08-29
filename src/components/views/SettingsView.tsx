@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback, useSyncExternalStore } from 'react'
 import { motion } from 'framer-motion'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
+import { useAppStore } from '@/lib/store'
+import { safeArray } from '@/lib/safe-array'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Switch } from '@/components/ui/switch'
 import { Button } from '@/components/ui/button'
@@ -44,6 +50,12 @@ import {
   ShieldCheck,
   Sparkles,
   Clock,
+  Phone,
+  MessageSquare,
+  Key,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from 'lucide-react'
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } }
@@ -117,6 +129,7 @@ function ThemeIcon({ theme }: { theme: string }) {
 // --- Main Component ---
 
 export default function SettingsView() {
+  const user = useAppStore(s => s.user)
   const { theme, setTheme } = useTheme()
   const mounted = useSyncExternalStore(
     () => () => {},
@@ -135,6 +148,14 @@ export default function SettingsView() {
     quietEnd: '08:00',
     quietEnabled: false,
   }
+
+  // USSD messages query
+  const { data: ussdMessagesData, isLoading: ussdLoading } = useQuery({
+    queryKey: ['ussd-messages'],
+    queryFn: () => fetch('/api/ussd/messages').then(r => r.json()),
+    enabled: !!user,
+  })
+  const ussdMessages = safeArray(ussdMessagesData)
 
   // Appearance state
   const [accent, setAccent] = useState<AccentColor>(() => getFromStorage('policypulse-accent', defaultAppearance).accent)
@@ -257,6 +278,10 @@ export default function SettingsView() {
             <TabsTrigger value="about" className="gap-1.5">
               <Info className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">About</span>
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-1.5">
+              <Phone className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Integrations</span>
             </TabsTrigger>
           </TabsList>
 
@@ -742,6 +767,172 @@ export default function SettingsView() {
                     <Separator />
                     <p className="text-xs">© {new Date().getFullYear()} PolicyPulse Uganda. All rights reserved.</p>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* ==================== INTEGRATIONS TAB ==================== */}
+          <TabsContent value="integrations" className="space-y-6">
+            <div className="max-w-2xl space-y-6">
+              {/* USSD Configuration */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-emerald-500" />
+                    USSD Integration
+                  </CardTitle>
+                  <CardDescription>
+                    Send policy alerts via USSD to Uganda phone numbers
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {/* Shortcode */}
+                  <div className="flex items-center justify-between rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-4">
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium">USSD Shortcode</p>
+                      <p className="text-xs text-muted-foreground">Africa's Talking USSD service for Uganda</p>
+                    </div>
+                    <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-900/50 px-3 py-1.5 rounded-md text-sm">
+                      *384*17818#
+                    </span>
+                  </div>
+
+                  {/* Provider Info */}
+                  <div className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                        <MessageSquare className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Africa's Talking</p>
+                        <p className="text-xs text-muted-foreground">SMS & USSD Provider</p>
+                      </div>
+                    </div>
+                    <Separator />
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="at-api-key" className="text-xs font-medium flex items-center gap-1.5">
+                          <Key className="h-3 w-3" />
+                          API Key
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="at-api-key"
+                            type="password"
+                            placeholder="Enter your Africa's Talking API key..."
+                            defaultValue=""
+                            disabled
+                            className="text-sm font-mono"
+                          />
+                          <Button variant="outline" size="sm" disabled className="shrink-0 text-xs">
+                            Save
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Get your API key from{' '}
+                          <a href="https://account.africastalking.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                            account.africastalking.com
+                            <ExternalLink className="h-2.5 w-2.5" />
+                          </a>
+                        </p>
+                      </div>
+                      <div className="rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 p-3">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Sandbox Mode</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              API key configuration is disabled in sandbox. In production, messages will be sent via Africa's Talking API.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Usage Stats */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="rounded-lg border p-3 text-center">
+                      <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{ussdMessages.length}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Total Sent</p>
+                    </div>
+                    <div className="rounded-lg border p-3 text-center">
+                      <p className="text-2xl font-bold text-amber-500">{ussdMessages.filter(m => m.status === 'QUEUED').length}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Queued</p>
+                    </div>
+                    <div className="rounded-lg border p-3 text-center">
+                      <p className="text-2xl font-bold text-red-500">{ussdMessages.filter(m => m.status === 'FAILED').length}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Failed</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* USSD Message History */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-primary" />
+                    USSD Message History
+                  </CardTitle>
+                  <CardDescription>Recent USSD messages sent via *384*17818#</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {ussdLoading ? (
+                    <div className="space-y-3">
+                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-lg" />)}
+                    </div>
+                  ) : ussdMessages.length === 0 ? (
+                    <div className="text-center py-8">
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                        <Phone className="h-6 w-6 text-muted-foreground/50" />
+                      </div>
+                      <p className="text-sm font-medium text-muted-foreground">No USSD messages sent yet</p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">
+                        Send your first USSD alert from the Alerts view
+                      </p>
+                    </div>
+                  ) : (
+                    <ScrollArea className="max-h-96">
+                      <div className="space-y-2">
+                        {ussdMessages.map((msg: { id: string; phoneNumber: string; message: string; status: string; createdAt: string; sentBy?: { name: string | null; email: string } | null }) => (
+                          <div key={msg.id} className="flex items-start gap-3 rounded-lg border p-3 hover:bg-muted/30 transition-colors">
+                            <div className="shrink-0 mt-0.5">
+                              {msg.status === 'SENT' ? (
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                              ) : msg.status === 'FAILED' ? (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              ) : (
+                                <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-xs font-medium">{msg.phoneNumber}</span>
+                                <Badge
+                                  variant="outline"
+                                  className={msg.status === 'SENT'
+                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400'
+                                    : msg.status === 'FAILED'
+                                      ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400'
+                                      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400'
+                                  }
+                                >
+                                  {msg.status}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{msg.message}</p>
+                              <div className="flex items-center gap-2 mt-1.5 text-[11px] text-muted-foreground/70">
+                                <span>{msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ''}</span>
+                                {msg.sentBy?.name && <span>· by {msg.sentBy.name}</span>}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  )}
                 </CardContent>
               </Card>
             </div>

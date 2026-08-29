@@ -45,14 +45,21 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
+      if (!res.ok) {
+        const ct = res.headers.get('content-type') || ''
+        if (ct.includes('text/html')) {
+          throw new Error('Server is starting up, please try again in a moment.')
+        }
+        const result = await res.json().catch(() => ({}))
+        throw new Error(result.error || `Login failed (${res.status})`)
+      }
       const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Login failed')
       queryClient.clear()
       setUser(result)
       useAppStore.getState().setView('dashboard')
       toast.success('Welcome back!')
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Login failed')
+      toast.error(err instanceof Error ? err.message : 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }

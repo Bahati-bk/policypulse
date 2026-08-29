@@ -107,15 +107,20 @@ export default function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      const result = await res.json()
       if (!res.ok) {
+        const ct = res.headers.get('content-type') || ''
+        if (ct.includes('text/html')) {
+          throw new Error('Server is starting up, please try again in a moment.')
+        }
+        const result = await res.json().catch(() => ({}))
         const fieldErrors = result.error
         if (typeof fieldErrors === 'object' && fieldErrors !== null) {
           const first = Object.values(fieldErrors)[0]
           if (Array.isArray(first)) throw new Error(first[0])
         }
-        throw new Error('Registration failed')
+        throw new Error(result.error || 'Registration failed')
       }
+      const result = await res.json()
       setUser(result)
       queryClient.clear()
       toast.success('Account created!')

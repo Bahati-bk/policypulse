@@ -1,0 +1,772 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useMemo } from 'react'
+     4→     4→import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+     5→     5→import { motion } from 'framer-motion'
+     6→     6→import { toast } from 'sonner'
+     7→     7→import { useAppStore } from '@/lib/store'
+     8→     8→import { safeArray } from '@/lib/safe-array'
+     9→     9→import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+    10→    10→import { Badge } from '@/components/ui/badge'
+    11→    11→import { Button } from '@/components/ui/button'
+    12→    12→import { Skeleton } from '@/components/ui/skeleton'
+    13→    13→import { Textarea } from '@/components/ui/textarea'
+    14→    14→import { Input } from '@/components/ui/input'
+    15→    15→import { Label } from '@/components/ui/label'
+    16→    16→import {
+    17→    17→  Dialog,
+    18→    18→  DialogContent,
+    19→    19→  DialogHeader,
+    20→    20→  DialogTitle,
+    21→    21→  DialogDescription,
+    22→    22→} from '@/components/ui/dialog'
+    23→    23→import {
+    24→    24→  Select,
+    25→    25→  SelectContent,
+    26→    26→  SelectItem,
+    27→    27→  SelectTrigger,
+    28→    28→  SelectValue,
+    29→    29→} from '@/components/ui/select'
+    30→    30→import { ScrollArea } from '@/components/ui/scroll-area'
+    31→    31→import { Separator } from '@/components/ui/separator'
+    32→    32→import {
+    33→    33→  Bell, CheckCircle2, XCircle, Send, AlertTriangle, Shield, Users,
+    34→    34→  ClipboardList, Search, Download, Plus, FileText, Zap,
+    35→    35→} from 'lucide-react'
+    36→    36→import { format } from 'date-fns'
+    37→    37→
+    38→    38→// ── Constants ────────────────────────────────────────────────────────
+    39→    39→
+    40→    40→const severityColors: Record<string, string> = {
+    41→    41→  LOW: 'bg-slate-400',
+    42→    42→  MEDIUM: 'bg-amber-400',
+    43→    43→  HIGH: 'bg-red-500',
+    44→    44→  CRITICAL: 'bg-rose-500',
+    45→    45→}
+    46→    46→
+    47→    47→const severityBorder: Record<string, string> = {
+    48→    48→  LOW: 'border-l-slate-400',
+    49→    49→  MEDIUM: 'border-l-amber-400',
+    50→    50→  HIGH: 'border-l-red-500',
+    51→    51→  CRITICAL: 'border-l-rose-500',
+    52→    52→}
+    53→    53→
+    54→    54→const severityBadge: Record<string, string> = {
+    55→    55→  LOW: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    56→    56→  MEDIUM: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400',
+    57→    57→  HIGH: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
+    58→    58→  CRITICAL: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400',
+    59→    59→}
+    60→    60→
+    61→    61→const changeTypeBadge: Record<string, string> = {
+    62→    62→  NEW_POLICY: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400',
+    63→    63→  AMENDMENT: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400',
+    64→    64→  REPEAL: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
+    65→    65→  REVISION: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400',
+    66→    66→  RESTRUCTURING: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    67→    67→  CLARIFICATION: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-400',
+    68→    68→}
+    69→    69→
+    70→    70→const changeTypeLabel: Record<string, string> = {
+    71→    71→  NEW_POLICY: 'New Policy',
+    72→    72→  AMENDMENT: 'Amendment',
+    73→    73→  REPEAL: 'Repeal',
+    74→    74→  REVISION: 'Revision',
+    75→    75→  RESTRUCTURING: 'Restructuring',
+    76→    76→  CLARIFICATION: 'Clarification',
+    77→    77→}
+    78→    78→
+    79→    79→const statusColors: Record<string, string> = {
+    80→    80→  DRAFT: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    81→    81→  PENDING_REVIEW: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-400',
+    82→    82→  APPROVED: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400',
+    83→    83→  REJECTED: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400',
+    84→    84→  SENT: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-400',
+    85→    85→}
+    86→    86→
+    87→    87→const statusIcons: Record<string, React.ReactNode> = {
+    88→    88→  DRAFT: <Bell className="h-4 w-4 text-slate-400" />,
+    89→    89→  PENDING_REVIEW: <AlertTriangle className="h-4 w-4 text-amber-500" />,
+    90→    90→  APPROVED: <CheckCircle2 className="h-4 w-4 text-emerald-500" />,
+    91→    91→  REJECTED: <XCircle className="h-4 w-4 text-red-500" />,
+    92→    92→  SENT: <Send className="h-4 w-4 text-teal-500" />,
+    93→    93→}
+    94→    94→
+    95→    95→const severityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
+    96→    96→const changeTypeOptions = ['NEW_POLICY', 'AMENDMENT', 'REPEAL', 'REVISION', 'RESTRUCTURING', 'CLARIFICATION'] as const
+    97→    97→const statusFilterOptions = ['', 'DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SENT'] as const
+    98→    98→
+    99→    99→const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
+   100→   100→const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
+   101→   101→
+   102→   102→// ── Types ────────────────────────────────────────────────────────────
+   103→   103→
+   104→   104→interface Alert {
+   105→   105→  id: string
+   106→   106→  title: string
+   107→   107→  summary: string | null
+   108→   108→  severity: string
+   109→   109→  changeType: string
+   110→   110→  whatChanged: string | null
+   111→   111→  whoIsAffected: string | null
+   112→   112→  whatToDo: string | null
+   113→   113→  status: string
+   114→   114→  createdAt: string
+   115→   115→  rejectionReason: string | null
+   116→   116→  [key: string]: unknown
+   117→   117→}
+   118→   118→
+   119→   119→interface FormData {
+   120→   120→  title: string
+   121→   121→  summary: string
+   122→   122→  severity: string
+   123→   123→  changeType: string
+   124→   124→  whatChanged: string
+   125→   125→  whoIsAffected: string
+   126→   126→  whatToDo: string
+   127→   127→}
+   128→   128→
+   129→   129→const emptyForm: FormData = {
+   130→   130→  title: '',
+   131→   131→  summary: '',
+   132→   132→  severity: 'MEDIUM',
+   133→   133→  changeType: 'CLARIFICATION',
+   134→   134→  whatChanged: '',
+   135→   135→  whoIsAffected: '',
+   136→   136→  whatToDo: '',
+   137→   137→}
+   138→   138→
+   139→   139→// ── Component ────────────────────────────────────────────────────────
+   140→   140→
+   141→   141→export default function AlertsView() {
+   142→   142→  const user = useAppStore(s => s.user)
+   143→   143→  const queryClient = useQueryClient()
+   144→   144→  const [statusFilter, setStatusFilter] = useState('')
+   145→   145→  const [search, setSearch] = useState('')
+   146→   146→  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null)
+   147→   147→  const [rejectDialog, setRejectDialog] = useState<string | null>(null)
+   148→   148→  const [rejectReason, setRejectReason] = useState('')
+   149→   149→  const [createOpen, setCreateOpen] = useState(false)
+   150→   150→  const [form, setForm] = useState<FormData>(emptyForm)
+   151→   151→
+   152→   152→  // ── Queries ──────────────────────────────────────────────────────
+   153→   153→
+   154→   154→  const { data: alertsData, isLoading } = useQuery<Alert[]>({
+   155→   155→    queryKey: ['alerts', statusFilter],
+   156→   156→    queryFn: () => fetch(`/api/alerts${statusFilter ? `?status=${statusFilter}` : ''}`).then(r => r.json()),
+   157→   157→    enabled: !!user,
+   158→   158→  })
+   159→   159→  const alerts = safeArray<Alert>(alertsData)
+   160→   160→
+   161→   161→  // ── Counts for filter badges ─────────────────────────────────────
+   162→   162→
+   163→   163→  const statusCounts = useMemo(() => {
+   164→   164→    const counts: Record<string, number> = { '': alerts.length }
+   165→   165→    for (const a of alerts) {
+   166→   166→      counts[a.status] = (counts[a.status] || 0) + 1
+   167→   167→    }
+   168→   168→    return counts
+   169→   169→  }, [alerts])
+   170→   170→
+   171→   171→  // ── Mutations ────────────────────────────────────────────────────
+   172→   172→
+   173→   173→  const createMutation = useMutation({
+   174→   174→    mutationFn: async (data: FormData) => {
+   175→   175→      const res = await fetch('/api/alerts', {
+   176→   176→        method: 'POST',
+   177→   177→        headers: { 'Content-Type': 'application/json' },
+   178→   178→        body: JSON.stringify(data),
+   179→   179→      })
+   180→   180→      if (!res.ok) {
+   181→   181→        const d = await res.json()
+   182→   182→        throw new Error(d.error || 'Failed to create alert')
+   183→   183→      }
+   184→   184→      return res.json()
+   185→   185→    },
+   186→   186→    onSuccess: () => {
+   187→   187→      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+   188→   188→      toast.success('Alert created successfully')
+   189→   189→      setCreateOpen(false)
+   190→   190→      setForm(emptyForm)
+   191→   191→    },
+   192→   192→    onError: (e) => toast.error(e.message),
+   193→   193→  })
+   194→   194→
+   195→   195→  const approveMutation = useMutation({
+   196→   196→    mutationFn: async (id: string) => {
+   197→   197→      const res = await fetch(`/api/alerts/${id}/approve`, { method: 'POST' })
+   198→   198→      if (!res.ok) throw new Error('Failed')
+   199→   199→      return res.json()
+   200→   200→    },
+   201→   201→    onSuccess: () => {
+   202→   202→      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+   203→   203→      toast.success('Alert approved')
+   204→   204→      setSelectedAlert(null)
+   205→   205→    },
+   206→   206→    onError: () => toast.error('Failed to approve'),
+   207→   207→  })
+   208→   208→
+   209→   209→  const rejectMutation = useMutation({
+   210→   210→    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+   211→   211→      const res = await fetch(`/api/alerts/${id}/reject`, {
+   212→   212→        method: 'POST',
+   213→   213→        headers: { 'Content-Type': 'application/json' },
+   214→   214→        body: JSON.stringify({ reason }),
+   215→   215→      })
+   216→   216→      if (!res.ok) throw new Error('Failed')
+   217→   217→      return res.json()
+   218→   218→    },
+   219→   219→    onSuccess: () => {
+   220→   220→      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+   221→   221→      toast.success('Alert rejected')
+   222→   222→      setRejectDialog(null)
+   223→   223→      setSelectedAlert(null)
+   224→   224→    },
+   225→   225→    onError: () => toast.error('Failed to reject'),
+   226→   226→  })
+   227→   227→
+   228→   228→  const sendMutation = useMutation({
+   229→   229→    mutationFn: async (id: string) => {
+   230→   230→      const res = await fetch(`/api/alerts/${id}/send`, { method: 'POST' })
+   231→   231→      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
+   232→   232→      return res.json()
+   233→   233→    },
+   234→   234→    onSuccess: (data) => {
+   235→   235→      queryClient.invalidateQueries({ queryKey: ['alerts'] })
+   236→   236→      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+   237→   237→      toast.success(`Notifications sent to ${data.sentTo} users`)
+   238→   238→      setSelectedAlert(null)
+   239→   239→    },
+   240→   240→    onError: (e) => toast.error(e.message),
+   241→   241→  })
+   242→   242→
+   243→   243→  // ── Helpers ──────────────────────────────────────────────────────
+   244→   244→
+   245→   245→  const isAdmin = user?.role === 'ADMIN'
+   246→   246→
+   247→   247→  const filtered = alerts.filter((alert) => {
+   248→   248→    if (!search) return true
+   249→   249→    const q = search.toLowerCase()
+   250→   250→    return (
+   251→   251→      alert.title?.toLowerCase().includes(q) ||
+   252→   252→      alert.summary?.toLowerCase().includes(q) ||
+   253→   253→      alert.whatChanged?.toLowerCase().includes(q)
+   254→   254→    )
+   255→   255→  })
+   256→   256→
+   257→   257→  function updateField<K extends keyof FormData>(key: K, value: FormData[K]) {
+   258→   258→    setForm(prev => ({ ...prev, [key]: value }))
+   259→   259→  }
+   260→   260→
+   261→   261→  function resetForm() {
+   262→   262→    setForm(emptyForm)
+   263→   263→  }
+   264→   264→
+   265→   265→  function handleSubmit(e: React.FormEvent) {
+   266→   266→    e.preventDefault()
+   267→   267→    if (!form.title.trim() || form.summary.trim().length < 10) return
+   268→   268→    createMutation.mutate(form)
+   269→   269→  }
+   270→   270→
+   271→   271→  function exportCSV() {
+   272→   272→    const headers = ['Title', 'Status', 'Severity', 'Change Type', 'Created', 'Summary', 'What Changed', 'Who Is Affected']
+   273→   273→    const rows = filtered.map(a => [
+   274→   274→      `"${(a.title || '').replace(/"/g, '\"')}"`,
+   275→   275→      a.status,
+   276→   276→      a.severity || '',
+   277→   277→      a.changeType || '',
+   278→   278→      a.createdAt ? format(new Date(a.createdAt), 'yyyy-MM-dd') : '',
+   279→   279→      `"${(a.summary || '').replace(/"/g, '\"')}"`,
+   280→   280→      `"${(a.whatChanged || '').replace(/"/g, '\"')}"`,
+   281→   281→      `"${(a.whoIsAffected || '').replace(/"/g, '\"')}"`,
+   282→   282→    ])
+   283→   283→    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+   284→   284→    const blob = new Blob([csv], { type: 'text/csv' })
+   285→   285→    const url = URL.createObjectURL(blob)
+   286→   286→    const a = document.createElement('a')
+   287→   287→    a.href = url
+   288→   288→    a.download = `policypulse-alerts-${format(new Date(), 'yyyy-MM-dd')}.csv`
+   289→   289→    a.click()
+   290→   290→    URL.revokeObjectURL(url)
+   291→   291→    toast.success('Alerts exported to CSV')
+   292→   292→  }
+   293→   293→
+   294→   294→  // ── Render ───────────────────────────────────────────────────────
+   295→   295→
+   296→   296→  return (
+   297→   297→    <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
+   298→   298→      {/* ── Header ── */}
+   299→   299→      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+   300→   300→        <div>
+   301→   301→          <h1 className="text-2xl font-bold tracking-tight">Alerts</h1>
+   302→   302→          <p className="text-muted-foreground text-sm">Policy change alerts and notifications</p>
+   303→   303→        </div>
+   304→   304→        <div className="flex items-center gap-2">
+   305→   305→          {filtered.length > 0 && (
+   306→   306→            <Button variant="outline" size="sm" onClick={exportCSV}>
+   307→   307→              <Download className="mr-2 h-3.5 w-3.5" />Export CSV
+   308→   308→            </Button>
+   309→   309→          )}
+   310→   310→          <Button size="sm" onClick={() => setCreateOpen(true)}>
+   311→   311→            <Plus className="mr-2 h-3.5 w-3.5" />Create Alert
+   312→   312→          </Button>
+   313→   313→        </div>
+   314→   314→      </div>
+   315→   315→
+   316→   316→      {/* ── Filters ── */}
+   317→   317→      <div className="flex flex-col sm:flex-row gap-3">
+   318→   318→        <div className="relative flex-1">
+   319→   319→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+   320→   320→          <Input
+   321→   321→            placeholder="Search alerts by title, summary, or changes..."
+   322→   322→            value={search}
+   323→   323→            onChange={e => setSearch(e.target.value)}
+   324→   324→            className="pl-9"
+   325→   325→          />
+   326→   326→        </div>
+   327→   327→        <div className="flex gap-2 flex-wrap">
+   328→   328→          {statusFilterOptions.map(s => {
+   329→   329→            const count = statusCounts[s] || 0
+   330→   330→            return (
+   331→   331→              <Button
+   332→   332→                key={s}
+   333→   333→                variant={statusFilter === s ? 'default' : 'outline'}
+   334→   334→                size="sm"
+   335→   335→                onClick={() => setStatusFilter(s)}
+   336→   336→                className="gap-1.5"
+   337→   337→              >
+   338→   338→                {s ? s.replace(/_/g, ' ') : 'All'}
+   339→   339→                {count > 0 && (
+   340→   340→                  <span className={
+   341→   341→                    statusFilter === s
+   342→   342→                      ? 'bg-background/20 text-current text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center'
+   343→   343→                      : 'bg-muted text-muted-foreground text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center'
+   344→   344→                  }>
+   345→   345→                    {count}
+   346→   346→                  </span>
+   347→   347→                )}
+   348→   348→              </Button>
+   349→   349→            )
+   350→   350→          })}
+   351→   351→        </div>
+   352→   352→      </div>
+   353→   353→
+   354→   354→      {/* ── Alert List ── */}
+   355→   355→      {isLoading ? (
+   356→   356→        <div className="space-y-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-lg" />)}</div>
+   357→   357→      ) : filtered.length === 0 ? (
+   358→   358→        <Card>
+   359→   359→          <CardContent className="py-16 px-8 text-center">
+   360→   360→            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+   361→   361→              <Bell className="h-8 w-8 text-muted-foreground/50" />
+   362→   362→            </div>
+   363→   363→            <p className="font-semibold text-muted-foreground text-lg">No alerts found</p>
+   364→   364→            <p className="text-sm text-muted-foreground/70 mt-2 max-w-md mx-auto">
+   365→   365→              {search || statusFilter
+   366→   366→                ? 'Try adjusting your search or filter to find what you\'re looking for.'
+   367→   367→                : 'Alerts will appear here when policy changes are detected or manually created. Get started by creating your first alert.'}
+   368→   368→            </p>
+   369→   369→            {!search && !statusFilter && (
+   370→   370→              <Button className="mt-4" size="sm" onClick={() => setCreateOpen(true)}>
+   371→   371→                <Plus className="mr-2 h-3.5 w-3.5" />Create Alert
+   372→   372→              </Button>
+   373→   373→            )}
+   374→   374→          </CardContent>
+   375→   375→        </Card>
+   376→   376→      ) : (
+   377→   377→        <motion.div variants={container} className="space-y-3">
+   378→   378→          {filtered.map((alert) => (
+   379→   379→            <motion.div key={alert.id} variants={item}>
+   380→   380→              <Card
+   381→   381→                className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${severityBorder[alert.severity] || 'border-l-slate-300'}`}
+   382→   382→                onClick={() => setSelectedAlert(alert)}
+   383→   383→              >
+   384→   384→                <CardContent className="p-4">
+   385→   385→                  <div className="flex items-start justify-between gap-3">
+   386→   386→                    <div className="flex items-start gap-3 min-w-0">
+   387→   387→                      {/* Severity dot */}
+   388→   388→                      <div className="relative shrink-0 mt-1">
+   389→   389→                        <div className={`h-2.5 w-2.5 rounded-full ${severityColors[alert.severity] || 'bg-slate-400'}`} />
+   390→   390→                        {alert.severity === 'CRITICAL' && (
+   391→   391→                          <span className="absolute inset-0 rounded-full bg-rose-400 animate-ping opacity-75" />
+   392→   392→                        )}
+   393→   393→                      </div>
+   394→   394→                      <div className="min-w-0">
+   395→   395→                        <p className="font-medium text-sm">{alert.title}</p>
+   396→   396→                        {alert.summary && (
+   397→   397→                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{alert.summary}</p>
+   398→   398→                        )}
+   399→   399→                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+   400→   400→                          <Badge variant="outline" className={statusColors[alert.status] || ''}>
+   401→   401→                            {alert.status.replace(/_/g, ' ')}
+   402→   402→                          </Badge>
+   403→   403→                          <Badge variant="outline" className={severityBadge[alert.severity] || ''}>
+   404→   404→                            {alert.severity}
+   405→   405→                          </Badge>
+   406→   406→                          {alert.changeType && (
+   407→   407→                            <Badge variant="outline" className={changeTypeBadge[alert.changeType] || ''}>
+   408→   408→                              {changeTypeLabel[alert.changeType] || alert.changeType.replace(/_/g, ' ')}
+   409→   409→                            </Badge>
+   410→   410→                          )}
+   411→   411→                        </div>
+   412→   412→                      </div>
+   413→   413→                    </div>
+   414→   414→                    <span className="text-xs text-muted-foreground shrink-0">
+   415→   415→                      {alert.createdAt ? format(new Date(alert.createdAt), 'MMM d, yyyy') : ''}
+   416→   416→                    </span>
+   417→   417→                  </div>
+   418→   418→                </CardContent>
+   419→   419→              </Card>
+   420→   420→            </motion.div>
+   421→   421→          ))}
+   422→   422→        </motion.div>
+   423→   423→      )}
+   424→   424→
+   425→   425→      {/* ── Create Alert Dialog ── */}
+   426→   426→      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) { setCreateOpen(false); resetForm() } }}>
+   427→   427→        <DialogContent className="max-w-2xl max-h-[90vh] pointer-events-auto">
+   428→   428→          <DialogHeader>
+   429→   429→            <DialogTitle className="flex items-center gap-2">
+   430→   430→              <Zap className="h-5 w-5 text-amber-500" />
+   431→   431→              Create New Alert
+   432→   432→            </DialogTitle>
+   433→   433→            <DialogDescription>
+   434→   434→              Fill in the details to create a new policy change alert. The alert will be created as a draft.
+   435→   435→            </DialogDescription>
+   436→   436→          </DialogHeader>
+   437→   437→
+   438→   438→          <form onSubmit={handleSubmit}>
+   439→   439→            <ScrollArea className="max-h-[65vh] pr-4">
+   440→   440→              <div className="space-y-5 pb-4">
+   441→   441→                {/* Title */}
+   442→   442→                <div className="space-y-2">
+   443→   443→                  <Label htmlFor="alert-title">Title <span className="text-red-500">*</span></Label>
+   444→   444→                  <Input
+   445→   445→                    id="alert-title"
+   446→   446→                    placeholder="e.g. NEW: Digital Service Tax Amendment"
+   447→   447→                    value={form.title}
+   448→   448→                    onChange={e => updateField('title', e.target.value)}
+   449→   449→                    required
+   450→   450→                  />
+   451→   451→                </div>
+   452→   452→
+   453→   453→                {/* Summary */}
+   454→   454→                <div className="space-y-2">
+   455→   455→                  <div className="flex items-center justify-between">
+   456→   456→                    <Label htmlFor="alert-summary">Summary <span className="text-red-500">*</span></Label>
+   457→   457→                    <span className={`text-xs ${form.summary.length >= 10 ? 'text-muted-foreground' : 'text-amber-500'}`}>
+   458→   458→                      {form.summary.length}/10 min characters
+   459→   459→                    </span>
+   460→   460→                  </div>
+   461→   461→                  <Textarea
+   462→   462→                    id="alert-summary"
+   463→   463→                    placeholder="Brief summary of the policy change..."
+   464→   464→                    value={form.summary}
+   465→   465→                    onChange={e => updateField('summary', e.target.value)}
+   466→   466→                    rows={3}
+   467→   467→                    required
+   468→   468→                  />
+   469→   469→                </div>
+   470→   470→
+   471→   471→                {/* Severity + Change Type row */}
+   472→   472→                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+   473→   473→                  <div className="space-y-2">
+   474→   474→                    <Label>Severity</Label>
+   475→   475→                    <Select value={form.severity} onValueChange={v => updateField('severity', v)}>
+   476→   476→                      <SelectTrigger className="w-full">
+   477→   477→                        <div className="flex items-center gap-2">
+   478→   478→                          <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${severityColors[form.severity]}`} />
+   479→   479→                          <SelectValue />
+   480→   480→                        </div>
+   481→   481→                      </SelectTrigger>
+   482→   482→                      <SelectContent>
+   483→   483→                        {severityOptions.map(s => (
+   484→   484→                          <SelectItem key={s} value={s}>
+   485→   485→                            <span className="flex items-center gap-2">
+   486→   486→                              <span className={`h-2.5 w-2.5 rounded-full ${severityColors[s]}`} />
+   487→   487→                              {s.charAt(0) + s.slice(1).toLowerCase()}
+   488→   488→                            </span>
+   489→   489→                          </SelectItem>
+   490→   490→                        ))}
+   491→   491→                      </SelectContent>
+   492→   492→                    </Select>
+   493→   493→                  </div>
+   494→   494→
+   495→   495→                  <div className="space-y-2">
+   496→   496→                    <Label>Change Type</Label>
+   497→   497→                    <Select value={form.changeType} onValueChange={v => updateField('changeType', v)}>
+   498→   498→                      <SelectTrigger className="w-full">
+   499→   499→                        <SelectValue />
+   500→   500→                      </SelectTrigger>
+   501→   501→                      <SelectContent>
+   502→   502→                        {changeTypeOptions.map(ct => (
+   503→   503→                          <SelectItem key={ct} value={ct}>
+   504→   504→                            <span className="flex items-center gap-2">
+   505→   505→                              <span className={`h-2 w-2 rounded-sm ${changeTypeBadge[ct].split(' ')[0]}`} />
+   506→   506→                              {changeTypeLabel[ct]}
+   507→   507→                            </span>
+   508→   508→                          </SelectItem>
+   509→   509→                        ))}
+   510→   510→                      </SelectContent>
+   511→   511→                    </Select>
+   512→   512→                  </div>
+   513→   513→                </div>
+   514→   514→
+   515→   515→                <Separator />
+   516→   516→
+   517→   517→                {/* What Changed */}
+   518→   518→                <div className="space-y-2">
+   519→   519→                  <div className="flex items-center justify-between">
+   520→   520→                    <Label htmlFor="alert-what-changed" className="flex items-center gap-1.5">
+   521→   521→                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+   522→   522→                      What Changed
+   523→   523→                    </Label>
+   524→   524→                    <span className="text-xs text-muted-foreground">{form.whatChanged.length} chars</span>
+   525→   525→                  </div>
+   526→   526→                  <Textarea
+   527→   527→                    id="alert-what-changed"
+   528→   528→                    placeholder="Describe the specific changes..."
+   529→   529→                    value={form.whatChanged}
+   530→   530→                    onChange={e => updateField('whatChanged', e.target.value)}
+   531→   531→                    rows={3}
+   532→   532→                  />
+   533→   533→                </div>
+   534→   534→
+   535→   535→                {/* Who Is Affected */}
+   536→   536→                <div className="space-y-2">
+   537→   537→                  <div className="flex items-center justify-between">
+   538→   538→                    <Label htmlFor="alert-who" className="flex items-center gap-1.5">
+   539→   539→                      <Users className="h-3.5 w-3.5 text-primary" />
+   540→   540→                      Who Is Affected
+   541→   541→                    </Label>
+   542→   542→                    <span className="text-xs text-muted-foreground">{form.whoIsAffected.length} chars</span>
+   543→   543→                  </div>
+   544→   544→                  <Textarea
+   545→   545→                    id="alert-who"
+   546→   546→                    placeholder="Describe affected groups..."
+   547→   547→                    value={form.whoIsAffected}
+   548→   548→                    onChange={e => updateField('whoIsAffected', e.target.value)}
+   549→   549→                    rows={3}
+   550→   550→                  />
+   551→   551→                </div>
+   552→   552→
+   553→   553→                {/* What To Do */}
+   554→   554→                <div className="space-y-2">
+   555→   555→                  <div className="flex items-center justify-between">
+   556→   556→                    <Label htmlFor="alert-actions" className="flex items-center gap-1.5">
+   557→   557→                      <ClipboardList className="h-3.5 w-3.5 text-emerald-500" />
+   558→   558→                      What To Do
+   559→   559→                    </Label>
+   560→   560→                    <span className="text-xs text-muted-foreground">{form.whatToDo.length} chars</span>
+   561→   561→                  </div>
+   562→   562→                  <Textarea
+   563→   563→                    id="alert-actions"
+   564→   564→                    placeholder="Recommended actions..."
+   565→   565→                    value={form.whatToDo}
+   566→   566→                    onChange={e => updateField('whatToDo', e.target.value)}
+   567→   567→                    rows={3}
+   568→   568→                  />
+   569→   569→                </div>
+   570→   570→
+   571→   571→                {/* ── Preview ── */}
+   572→   572→                {(form.title || form.summary) && (
+   573→   573→                  <>
+   574→   574→                    <Separator />
+   575→   575→                    <div className="space-y-2">
+   576→   576→                      <Label className="flex items-center gap-1.5 text-muted-foreground">
+   577→   577→                        <FileText className="h-3.5 w-3.5" />
+   578→   578→                        Alert Preview
+   579→   579→                      </Label>
+   580→   580→                      <Card className={`border-l-4 ${severityBorder[form.severity]}`}>
+   581→   581→                        <CardContent className="p-4">
+   582→   582→                          <div className="flex items-start gap-3">
+   583→   583→                            <div className="relative shrink-0 mt-1">
+   584→   584→                              <div className={`h-2.5 w-2.5 rounded-full ${severityColors[form.severity]}`} />
+   585→   585→                              {form.severity === 'CRITICAL' && (
+   586→   586→                                <span className="absolute inset-0 rounded-full bg-rose-400 animate-ping opacity-75" />
+   587→   587→                              )}
+   588→   588→                            </div>
+   589→   589→                            <div className="min-w-0 flex-1">
+   590→   590→                              <p className="font-medium text-sm">
+   591→   591→                                {form.title || 'Untitled Alert'}
+   592→   592→                              </p>
+   593→   593→                              {form.summary && (
+   594→   594→                                <p className="text-xs text-muted-foreground mt-1">{form.summary}</p>
+   595→   595→                              )}
+   596→   596→                              <div className="flex items-center gap-2 mt-2 flex-wrap">
+   597→   597→                                <Badge variant="outline" className={statusColors['DRAFT']}>
+   598→   598→                                  Draft
+   599→   599→                                </Badge>
+   600→   600→                                <Badge variant="outline" className={severityBadge[form.severity]}>
+   601→   601→                                  {form.severity}
+   602→   602→                                </Badge>
+   603→   603→                                <Badge variant="outline" className={changeTypeBadge[form.changeType]}>
+   604→   604→                                  {changeTypeLabel[form.changeType]}
+   605→   605→                                </Badge>
+   606→   606→                              </div>
+   607→   607→                            </div>
+   608→   608→                          </div>
+   609→   609→                          {(form.whatChanged || form.whoIsAffected || form.whatToDo) && (
+   610→   610→                            <div className="grid sm:grid-cols-3 gap-3 mt-3">
+   611→   611→                              {form.whatChanged && (
+   612→   612→                                <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-950/20 p-2.5">
+   613→   613→                                  <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-1">What Changed</p>
+   614→   614→                                  <p className="text-[11px] text-muted-foreground line-clamp-3">{form.whatChanged}</p>
+   615→   615→                                </div>
+   616→   616→                              )}
+   617→   617→                              {form.whoIsAffected && (
+   618→   618→                                <div className="rounded-md border border-border/50 bg-muted/30 p-2.5">
+   619→   619→                                  <p className="text-[11px] font-semibold mb-1">Who Is Affected</p>
+   620→   620→                                  <p className="text-[11px] text-muted-foreground line-clamp-3">{form.whoIsAffected}</p>
+   621→   621→                                </div>
+   622→   622→                              )}
+   623→   623→                              {form.whatToDo && (
+   624→   624→                                <div className="rounded-md border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-2.5">
+   625→   625→                                  <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mb-1">What To Do</p>
+   626→   626→                                  <p className="text-[11px] text-muted-foreground line-clamp-3">{form.whatToDo}</p>
+   627→   627→                                </div>
+   628→   628→                              )}
+   629→   629→                            </div>
+   630→   630→                          )}
+   631→   631→                        </CardContent>
+   632→   632→                      </Card>
+   633→   633→                    </div>
+   634→   634→                  </>
+   635→   635→                )}
+   636→   636→              </div>
+   637→   637→            </ScrollArea>
+   638→   638→
+   639→   639→            <Separator />
+   640→   640→            <div className="flex items-center justify-end gap-2 pt-4">
+   641→   641→              <Button
+   642→   642→                type="button"
+   643→   643→                variant="outline"
+   644→   644→                onClick={() => { setCreateOpen(false); resetForm() }}
+   645→   645→              >
+   646→   646→                Cancel
+   647→   647→              </Button>
+   648→   648→              <Button
+   649→   649→                type="submit"
+   650→   650→                disabled={createMutation.isPending || !form.title.trim() || form.summary.trim().length < 10}
+   651→   651→              >
+   652→   652→                {createMutation.isPending ? 'Creating...' : 'Create Alert'}
+   653→   653→              </Button>
+   654→   654→            </div>
+   655→   655→          </form>
+   656→   656→        </DialogContent>
+   657→   657→      </Dialog>
+   658→   658→
+   659→   659→      {/* ── Alert Detail Dialog ── */}
+   660→   660→      <Dialog open={!!selectedAlert} onOpenChange={(open) => { if (!open) setSelectedAlert(null) }}>
+   661→   661→        <DialogContent className="max-w-2xl max-h-[80vh] pointer-events-auto">
+   662→   662→          <DialogHeader>
+   663→   663→            <DialogTitle className="flex items-center gap-2">
+   664→   664→              <Shield className="h-5 w-5 text-primary" />{selectedAlert?.title}
+   665→   665→            </DialogTitle>
+   666→   666→            <div className="flex items-center gap-2 flex-wrap">
+   667→   667→              <Badge variant="outline" className={statusColors[selectedAlert?.status || 'DRAFT']}>
+   668→   668→                {(selectedAlert?.status || '').replace(/_/g, ' ')}
+   669→   669→              </Badge>
+   670→   670→              <Badge variant="outline" className={severityBadge[selectedAlert?.severity || 'MEDIUM']}>
+   671→   671→                {selectedAlert?.severity} severity
+   672→   672→              </Badge>
+   673→   673→              {selectedAlert?.changeType && (
+   674→   674→                <Badge variant="outline" className={changeTypeBadge[selectedAlert.changeType]}>
+   675→   675→                  {changeTypeLabel[selectedAlert.changeType] || selectedAlert.changeType.replace(/_/g, ' ')}
+   676→   676→                </Badge>
+   677→   677→              )}
+   678→   678→            </div>
+   679→   679→          </DialogHeader>
+   680→   680→
+   681→   681→          {selectedAlert && (
+   682→   682→            <ScrollArea className="max-h-[60vh]">
+   683→   683→              <div className="space-y-4 pr-4">
+   684→   684→                {selectedAlert.summary && (
+   685→   685→                  <div className="rounded-lg bg-muted/50 border border-border/50 p-4">
+   686→   686→                    <p className="text-sm leading-relaxed">{selectedAlert.summary}</p>
+   687→   687→                  </div>
+   688→   688→                )}
+   689→   689→
+   690→   690→                <div className="grid md:grid-cols-3 gap-4">
+   691→   691→                  <Card className="border-l-4 border-l-amber-400">
+   692→   692→                    <CardContent className="p-4">
+   693→   693→                      <div className="flex items-center gap-2 mb-2">
+   694→   694→                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+   695→   695→                        <p className="text-xs font-semibold">What Changed</p>
+   696→   696→                      </div>
+   697→   697→                      <p className="text-xs text-muted-foreground leading-relaxed">{selectedAlert.whatChanged || 'N/A'}</p>
+   698→   698→                    </CardContent>
+   699→   699→                  </Card>
+   700→   700→                  <Card className="border-l-4 border-l-primary">
+   701→   701→                    <CardContent className="p-4">
+   702→   702→                      <div className="flex items-center gap-2 mb-2">
+   703→   703→                        <Users className="h-4 w-4 text-primary" />
+   704→   704→                        <p className="text-xs font-semibold">Who Is Affected</p>
+   705→   705→                      </div>
+   706→   706→                      <p className="text-xs text-muted-foreground leading-relaxed">{selectedAlert.whoIsAffected || 'N/A'}</p>
+   707→   707→                    </CardContent>
+   708→   708→                  </Card>
+   709→   709→                  <Card className="border-l-4 border-l-emerald-400">
+   710→   710→                    <CardContent className="p-4">
+   711→   711→                      <div className="flex items-center gap-2 mb-2">
+   712→   712→                        <ClipboardList className="h-4 w-4 text-emerald-500" />
+   713→   713→                        <p className="text-xs font-semibold">What To Do</p>
+   714→   714→                      </div>
+   715→   715→                      <p className="text-xs text-muted-foreground leading-relaxed">{selectedAlert.whatToDo || 'N/A'}</p>
+   716→   716→                    </CardContent>
+   717→   717→                  </Card>
+   718→   718→                </div>
+   719→   719→
+   720→   720→                {isAdmin && (
+   721→   721→                  <div className="flex gap-2 pt-2 border-t">
+   722→   722→                    {selectedAlert.status === 'PENDING_REVIEW' && (
+   723→   723→                      <>
+   724→   724→                        <Button onClick={() => approveMutation.mutate(selectedAlert.id)} disabled={approveMutation.isPending}>
+   725→   725→                          <CheckCircle2 className="mr-2 h-4 w-4" />Approve
+   726→   726→                        </Button>
+   727→   727→                        <Button variant="outline" onClick={() => setRejectDialog(selectedAlert.id)}>
+   728→   728→                          <XCircle className="mr-2 h-4 w-4" />Reject
+   729→   729→                        </Button>
+   730→   730→                      </>
+   731→   731→                    )}
+   732→   732→                    {selectedAlert.status === 'APPROVED' && (
+   733→   733→                      <Button onClick={() => sendMutation.mutate(selectedAlert.id)} disabled={sendMutation.isPending}>
+   734→   734→                        <Send className="mr-2 h-4 w-4" />{sendMutation.isPending ? 'Sending...' : 'Send Notifications'}
+   735→   735→                      </Button>
+   736→   736→                    )}
+   737→   737→                  </div>
+   738→   738→                )}
+   739→   739→
+   740→   740→                {selectedAlert.rejectionReason && (
+   741→   741→                  <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-3">
+   742→   742→                    <p className="text-xs font-medium text-red-600 dark:text-red-400">Rejection Reason</p>
+   743→   743→                    <p className="text-xs text-muted-foreground mt-1">{selectedAlert.rejectionReason}</p>
+   744→   744→                  </div>
+   745→   745→                )}
+   746→   746→              </div>
+   747→   747→            </ScrollArea>
+   748→   748→          )}
+   749→   749→        </DialogContent>
+   750→   750→      </Dialog>
+   751→   751→
+   752→   752→      {/* ── Reject Dialog ── */}
+   753→   753→      <Dialog open={!!rejectDialog} onOpenChange={() => setRejectDialog(null)}>
+   754→   754→        <DialogContent>
+   755→   755→          <DialogHeader><DialogTitle>Reject Alert</DialogTitle></DialogHeader>
+   756→   756→          <Textarea
+   757→   757→            placeholder="Reason for rejection..."
+   758→   758→            value={rejectReason}
+   759→   759→            onChange={e => setRejectReason(e.target.value)}
+   760→   760→          />
+   761→   761→          <Button
+   762→   762→            variant="destructive"
+   763→   763→            onClick={() => rejectMutation.mutate({ id: rejectDialog!, reason: rejectReason })}
+   764→   764→            disabled={rejectMutation.isPending}
+   765→   765→          >
+   766→   766→            {rejectMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
+   767→   767→          </Button>
+   768→   768→        </DialogContent>
+   769→   769→      </Dialog>
+   770→   770→    </motion.div>
+   771→   771→  )
+   772→   772→}

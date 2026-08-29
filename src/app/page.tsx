@@ -91,7 +91,8 @@ export default function Home() {
     defaultOptions: {
       queries: {
         staleTime: 30 * 1000,
-        retry: 1,
+        retry: 3,
+        retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
         refetchOnWindowFocus: false,
       },
     },
@@ -99,19 +100,23 @@ export default function Home() {
 
   const checkSession = useCallback(async () => {
     const { setUser, setView, setCheckingSession } = useAppStore.getState()
-    try {
-      const res = await fetch('/api/auth/me')
-      const data = await res.json()
-      if (data.id) {
-        setUser(data)
-      } else {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const res = await fetch('/api/auth/me')
+        const data = await res.json()
+        if (data.id) {
+          setUser(data)
+          return
+        }
         setView('auth')
         setCheckingSession(false)
+        return
+      } catch {
+        if (attempt < 4) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
       }
-    } catch {
-      setView('auth')
-      setCheckingSession(false)
     }
+    setView('auth')
+    setCheckingSession(false)
   }, [])
 
   useEffect(() => {

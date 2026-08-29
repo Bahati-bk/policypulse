@@ -30,6 +30,7 @@ model User {
   auditLogs      AuditLog[]
   comparisons    DocumentComparison[]
   approvedAlerts Alert[]              @relation("AlertApprover")
+  ussdMessages   USSDMessage[]
 }
 
 model UserProfile {
@@ -276,6 +277,25 @@ model AIAnalysisRun {
   completedAt     DateTime?
 
   comparison DocumentComparison @relation(fields: [comparisonId], references: [id], onDelete: Cascade)
+}
+
+// ============ USSD MESSAGES ============
+
+model USSDMessage {
+  id           String   @id @default(cuid())
+  alertId      String?
+  phoneNumber  String
+  message      String
+  shortcode    String   @default("*384*17818#")
+  status       String   @default("QUEUED") // QUEUED, SENT, FAILED
+  recipientCount Int    @default(1)
+  sentById     String?
+  errorMessage String?
+  sentAt       DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sentBy User? @relation(fields: [sentById], references: [id])
 }
 
 // ============ AUDIT ============
