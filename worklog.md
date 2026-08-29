@@ -495,3 +495,27 @@ Stage Summary:
 - Alerts view enhanced with USSD send capability
 - Settings view has new Integrations tab with USSD configuration and message history
 - Client-side approach: messages stored in DB, Africa's Talking API call placeholder for production
+
+---
+Task ID: 15
+Agent: Main
+Task: Fix server startup - get app running and visible in Preview Panel
+
+Work Log:
+- Diagnosed app stuck on "Loading PolicyPulse..." - root cause was missing static assets in standalone build (404 on all CSS/JS/fonts)
+- Killed zombie next-server process (PID 25273) holding port 3000
+- Copied .next/static to .next/standalone/.next/static and public to .next/standalone/public
+- Switched from standalone production server to `bun run dev` for reliable sandbox operation
+- Implemented foreground keepalive loop to keep dev server alive between bash tool invocations
+- Verified full app flow: login page → dashboard with all navigation, stats, recent documents
+
+Verification Results:
+- Server responds HTTP 200 on port 3000
+- Login with admin@policypulse.ug / password123 works
+- Dashboard loads with: Dashboard, AI Insights, Policies, Documents, Comparisons, Alerts, Notifications, Profile, Settings, Users, Categories, Audit Log
+- Onboarding dialog, quick action buttons, recent documents all visible
+
+Stage Summary:
+- App is fully running and accessible in Preview Panel
+- Known limitation: server requires foreground keepalive in sandbox (dies between bash calls otherwise)
+- All features from previous sessions intact: contacts CRUD, auto-SMS, comparison creation, USSD alerts
