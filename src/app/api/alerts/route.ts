@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { autoSendSmsAlert } from '@/lib/sms'
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -65,5 +66,21 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return NextResponse.json(alert, { status: 201 })
+  // Auto-send SMS to all saved contacts
+  try {
+    const smsResult = await autoSendSmsAlert({
+      userId: user.id,
+      alertId: alert.id,
+      title,
+      summary: summary || undefined,
+      source: 'New Alert',
+    })
+    if (smsResult.queued > 0) {
+      console.log(`Auto-queued ${smsResult.queued} SMS for new alert ${alert.id}`)
+    }
+  } catch (smsErr) {
+    console.error('Auto-SMS failed for new alert:', smsErr)
+  }
+
+  return NextResponse.json({ ...alert, _smsQueued: true }, { status: 201 })
 }

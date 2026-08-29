@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -110,6 +110,7 @@ export default function ComparisonsView() {
               const oldDoc = comp.oldDocument as Record<string, unknown> | null
               const newDoc = comp.newDocument as Record<string, unknown> | null
               const creator = comp.creator as Record<string, unknown> | null
+              const compTitle = comp.title as string | null
               const createdAt = comp.createdAt as string
 
               return (
@@ -136,6 +137,10 @@ export default function ComparisonsView() {
                           <span className="text-[10px] text-muted-foreground">{creator.name as string}</span>
                         )}
                       </div>
+
+                      {compTitle && (
+                        <p className="font-medium text-sm">{compTitle}</p>
+                      )}
 
                       <div className="space-y-1.5">
                         <div className="flex items-center gap-2 text-sm">
@@ -187,15 +192,20 @@ export default function ComparisonsView() {
 /* ==================== Create Dialog ==================== */
 function CreateComparisonDialog({ open, onOpenChange, onCreated }: { open: boolean; onOpenChange: (v: boolean) => void; onCreated: (id: string) => void }) {
   const user = useAppStore(s => s.user)
-  const [step, setStep] = useState(1)
+  const [page, setPage] = useState<'upload' | 'select'>('upload')
   const [policyId, setPolicyId] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [oldFile, setOldFile] = useState<File | null>(null)
   const [newFile, setNewFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
   const oldInputRef = useRef<HTMLInputElement>(null)
   const newInputRef = useRef<HTMLInputElement>(null)
+
+  // For selecting existing documents
+  const [oldDocId, setOldDocId] = useState('')
+  const [newDocId, setNewDocId] = useState('')
 
   const { data: policies } = useQuery({
     queryKey: ['policies-select'],
@@ -203,15 +213,26 @@ function CreateComparisonDialog({ open, onOpenChange, onCreated }: { open: boole
     enabled: open && !!user,
   })
 
+  const { data: documents } = useQuery({
+    queryKey: ['documents-select', policyId],
+    queryFn: () => fetch(`/api/documents${policyId ? `?policyId=${policyId}` : ''}`).then(r => r.json()),
+    enabled: open && !!user && page === 'select',
+  })
+
   const policyList = safeArray<Record<string, unknown>>(policies)
+  const docList = safeArray<Record<string, unknown>>(documents)
 
   const reset = useCallback(() => {
-    setStep(1)
+    setPage('upload')
     setPolicyId('')
     setTitle('')
     setDescription('')
     setOldFile(null)
     setNewFile(null)
+    setOldDocId('')
+    setNewDocId('')
+    setError('')
+    setSubmitting(false)
   }, [])
 
   const handleClose = useCallback((v: boolean) => {
@@ -219,11 +240,11 @@ function CreateComparisonDialog({ open, onOpenChange, onCreated }: { open: boole
     onOpenChange(v)
   }, [onOpenChange, reset])
 
-  const canProceed = step === 1 ? !!policyId : step === 2 ? !!oldFile : step === 3 ? !!newFile : true
-
-  const handleSubmit = async () => {
+  // Submit using uploaded files
+  const handleUploadSubmit = async () => {
     if (!oldFile || !newFile || !policyId || !user) return
     setSubmitting(true)
+    setError('')
     try {
       const oldBase64 = await readFileAsBase64(oldFile)
       const newBase64 = await readFileAsBase64(newFile)
@@ -242,169 +263,272 @@ function CreateComparisonDialog({ open, onOpenChange, onCreated }: { open: boole
       })
       if (!res.ok) {
         const ct = res.headers.get('content-type') || ''
-        if (ct.includes('text/html')) throw new Error('Server is starting up, please try again.')
+        if (ct.includes('text/html')) throw new Error('Server is starting up, please try again in a moment.')
         const data = await res.json().catch(() => ({}))
         throw new Error(data.error || 'Comparison failed')
       }
       const data = await res.json()
+      const compId = data.comparison?.id || ''
       toast.success(`AI comparison complete! Found ${data.changesCount || 0} changes.`)
-      onCreated(data.comparison?.id || '')
+      if (data._smsQueued) toast.info('SMS alerts queued to your contacts')
+      onCreated(compId)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Comparison failed')
+      const msg = err instanceof Error ? err.message : 'Comparison failed'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
   }
 
-  const stepLabels = ['Select Policy', 'Upload Original', 'Upload Amendment', 'Review & Compare']
+  // Submit using existing documents
+  const handleSelectSubmit = async () => {
+    if (!oldDocId || !newDocId || !policyId || !user) return
+    setSubmitting(true)
+    setError('')
+    try {
+      const res = await fetch('/api/comparisons', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title || 'AI Comparison',
+          description,
+          policyId,
+          oldDocumentId: oldDocId,
+          newDocumentId: newDocId,
+        }),
+      })
+      if (!res.ok) {
+        const ct = res.headers.get('content-type') || ''
+        if (ct.includes('text/html')) throw new Error('Server is starting up, please try again in a moment.')
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || 'Comparison creation failed')
+      }
+      const data = await res.json()
+      toast.success('Comparison created and sent for AI analysis!')
+      onCreated(data.id || '')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Comparison failed'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const isUploadReady = !!policyId && !!oldFile && !!newFile && !submitting
+  const isSelectReady = !!policyId && !!oldDocId && !!newDocId && !submitting
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
             AI Policy Comparison
           </DialogTitle>
+          <DialogDescription>
+            Compare two versions of a policy document using AI analysis
+          </DialogDescription>
         </DialogHeader>
 
-        {/* Steps indicator */}
-        <div className="flex items-center gap-1 mb-6">
-          {stepLabels.map((label, i) => (
-            <div key={i} className="flex items-center gap-1">
-              <div className={`h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                i + 1 <= step ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>{i + 1}</div>
-              <span className={`text-xs ${i + 1 <= step ? 'text-foreground' : 'text-muted-foreground'}`}>{label}</span>
-              {i < 3 && <div className={`w-6 h-px mx-1 ${i + 1 < step ? 'bg-primary' : 'bg-border'}`} />}
-            </div>
-          ))}
+        {/* Tab switcher */}
+        <div className="flex gap-1 bg-muted rounded-lg p-1">
+          <button
+            className={`flex-1 text-xs font-medium py-2 px-3 rounded-md transition-colors ${page === 'upload' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setPage('upload')}
+          >
+            <Upload className="h-3.5 w-3.5 inline mr-1.5" />
+            Upload Files
+          </button>
+          <button
+            className={`flex-1 text-xs font-medium py-2 px-3 rounded-md transition-colors ${page === 'select' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setPage('select')}
+          >
+            <FileText className="h-3.5 w-3.5 inline mr-1.5" />
+            Select Existing
+          </button>
         </div>
 
-        <AnimatePresence mode="wait">
-          {step === 1 && (
-            <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Select Policy</Label>
-                <Select value={policyId} onValueChange={setPolicyId}>
-                  <SelectTrigger><SelectValue placeholder="Choose a policy..." /></SelectTrigger>
-                  <SelectContent>{policyList.map((p: Record<string, unknown>) => (
-                    <SelectItem key={p.id as string} value={p.id as string}>{p.title as string}</SelectItem>
-                  ))}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Title (optional)</Label>
-                <Input placeholder="e.g., Tax Act 2023 vs 2024" value={title} onChange={e => setTitle(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Description (optional)</Label>
-                <Textarea placeholder="Context for the comparison..." value={description} onChange={e => setDescription(e.target.value)} rows={2} />
-              </div>
-            </motion.div>
-          )}
+        <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="space-y-4 pb-4">
+            {/* Policy selection */}
+            <div className="space-y-2">
+              <Label>Select Policy <span className="text-red-500">*</span></Label>
+              <Select value={policyId} onValueChange={(v) => { setPolicyId(v); setOldDocId(''); setNewDocId('') }}>
+                <SelectTrigger><SelectValue placeholder="Choose a policy..." /></SelectTrigger>
+                <SelectContent className="max-h-60">{policyList.map((p: Record<string, unknown>) => (
+                  <SelectItem key={p.id as string} value={p.id as string}>{p.title as string}</SelectItem>
+                ))}</SelectContent>
+              </Select>
+            </div>
 
-          {step === 2 && (
-            <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Original / Old Document</Label>
-                <div
-                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                  onClick={() => oldInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
-                  onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) setOldFile(f) }}
-                >
-                  <input ref={oldInputRef} type="file" className="hidden" accept=".txt,.pdf,.doc,.docx,.md" onChange={e => { if (e.target.files[0]) setOldFile(e.target.files[0]) }} />
-                  {oldFile ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <FileText className="h-8 w-8 text-primary" />
-                      <div className="text-left">
-                        <p className="font-medium text-sm">{oldFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{(oldFile.size / 1024).toFixed(1)} KB</p>
+            {/* Title */}
+            <div className="space-y-2">
+              <Label>Title (optional)</Label>
+              <Input placeholder="e.g., Tax Act 2023 vs 2024" value={title} onChange={e => setTitle(e.target.value)} />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>Description (optional)</Label>
+              <Textarea placeholder="Context for the comparison..." value={description} onChange={e => setDescription(e.target.value)} rows={2} />
+            </div>
+
+            <Separator />
+
+            {page === 'upload' && (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* Old file upload */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-red-500" />
+                    Original Document <span className="text-red-500">*</span>
+                  </Label>
+                  <div
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-red-300 dark:hover:border-red-800 hover:bg-red-50/50 dark:hover:bg-red-950/20 transition-colors min-h-[120px] flex flex-col items-center justify-center"
+                    onClick={() => oldInputRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+                    onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) setOldFile(f) }}
+                  >
+                    <input ref={oldInputRef} type="file" className="hidden" accept=".txt, .pdf, .doc, .docx, .md" onChange={e => { const f = e.target.files?.[0]; if (f) setOldFile(f) }} />
+                    {oldFile ? (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-6 w-6 text-red-500 shrink-0" />
+                        <div className="text-left min-w-0">
+                          <p className="font-medium text-sm truncate">{oldFile.name}</p>
+                          <p className="text-xs text-muted-foreground">{(oldFile.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setOldFile(null) }}
+                          className="ml-auto p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/50 shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
                       </div>
-                      <button onClick={e => { e.stopPropagation(); setOldFile(null) }} className="ml-4 p-1 rounded hover:bg-destructive/10"><X className="h-4 w-4 text-muted-foreground" /></button>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                      <p className="text-sm text-muted-foreground">Drag & drop or click to upload</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">TXT, PDF, DOCX, or MD files</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 3 && (
-            <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Amended / New Document</Label>
-                <div
-                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
-                  onClick={() => newInputRef.current?.click()}
-                  onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
-                  onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) setNewFile(f) }}
-                >
-                  <input ref={newInputRef} type="file" className="hidden" accept=".txt,.pdf,.doc,.docx,.md" onChange={e => { if (e.target.files[0]) setNewFile(e.target.files[0]) }} />
-                  {newFile ? (
-                    <div className="flex items-center justify-center gap-3">
-                      <FileText className="h-8 w-8 text-primary" />
-                      <div className="text-left">
-                        <p className="font-medium text-sm">{newFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{(newFile.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                      <button onClick={e => { e.stopPropagation(); setNewFile(null) }} className="ml-4 p-1 rounded hover:bg-destructive/10"><X className="h-4 w-4 text-muted-foreground" /></button>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                      <p className="text-sm text-muted-foreground">Drag & drop or click to upload</p>
-                      <p className="text-xs text-muted-foreground/60 mt-1">TXT, PDF, DOCX, or MD files</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 4 && (
-            <motion.div key="s4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-                <h4 className="font-semibold text-sm">Review & Compare with AI</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200/50 dark:border-red-900/50 p-3">
-                    <p className="text-[10px] font-semibold text-red-600 dark:text-red-400 uppercase mb-1">Original</p>
-                    <p className="text-sm font-medium truncate">{oldFile?.name}</p>
-                    <p className="text-xs text-muted-foreground">{(oldFile?.size ?? 0 / 1024).toFixed(1)} KB</p>
-                  </div>
-                  <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/50 p-3">
-                    <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase mb-1">Amended</p>
-                    <p className="text-sm font-medium truncate">{newFile?.name}</p>
-                    <p className="text-xs text-muted-foreground">{(newFile?.size ?? 0 / 1024).toFixed(1)} KB</p>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 mx-auto mb-1.5 text-muted-foreground/40" />
+                        <p className="text-xs text-muted-foreground">Click or drag to upload</p>
+                        <p className="text-[10px] text-muted-foreground/50 mt-0.5">TXT, PDF, DOCX, MD</p>
+                      </>
+                    )}
                   </div>
                 </div>
-                <Separator />
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span>AI will analyze both documents and identify all changes</span>
+
+                {/* New file upload */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                    Amended Document <span className="text-red-500">*</span>
+                  </Label>
+                  <div
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-800 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/20 transition-colors min-h-[120px] flex flex-col items-center justify-center"
+                    onClick={() => newInputRef.current?.click()}
+                    onDragOver={e => { e.preventDefault(); e.stopPropagation() }}
+                    onDrop={e => { e.preventDefault(); e.stopPropagation(); const f = e.dataTransfer.files[0]; if (f) setNewFile(f) }}
+                  >
+                    <input ref={newInputRef} type="file" className="hidden" accept=".txt, .pdf, .doc, .docx, .md" onChange={e => { const f = e.target.files?.[0]; if (f) setNewFile(f) }} />
+                    {newFile ? (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-6 w-6 text-emerald-500 shrink-0" />
+                        <div className="text-left min-w-0">
+                          <p className="font-medium text-sm truncate">{newFile.name}</p>
+                          <p className="text-xs text-muted-foreground">{(newFile.size / 1024).toFixed(1)} KB</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setNewFile(null) }}
+                          className="ml-auto p-1 rounded hover:bg-emerald-100 dark:hover:bg-emerald-900/50 shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="h-6 w-6 mx-auto mb-1.5 text-muted-foreground/40" />
+                        <p className="text-xs text-muted-foreground">Click or drag to upload</p>
+                        <p className="text-[10px] text-muted-foreground/50 mt-0.5">TXT, PDF, DOCX, MD</p>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
 
-        <div className="flex items-center justify-between mt-6">
-          <Button variant="outline" onClick={() => step > 1 ? setStep(step - 1) : handleClose(false)} disabled={submitting}>
-            {step === 1 ? 'Cancel' : 'Back'}
+            {page === 'select' && (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {/* Old document select */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-red-500" />
+                    Original Document <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={oldDocId} onValueChange={setOldDocId}>
+                    <SelectTrigger><SelectValue placeholder={docList.length > 0 ? 'Select original...' : 'Upload documents first'} /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {docList.filter((d: Record<string, unknown>) => d.id !== newDocId).map((d: Record<string, unknown>) => (
+                        <SelectItem key={d.id as string} value={d.id as string}>
+                          <span className="truncate">{d.fileName as string || 'Untitled'} {d.version ? `(${d.version as string})` : ''}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* New document select */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                    Amended Document <span className="text-red-500">*</span>
+                  </Label>
+                  <Select value={newDocId} onValueChange={setNewDocId}>
+                    <SelectTrigger><SelectValue placeholder={docList.length > 0 ? 'Select amended...' : 'Upload documents first'} /></SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {docList.filter((d: Record<string, unknown>) => d.id !== oldDocId).map((d: Record<string, unknown>) => (
+                        <SelectItem key={d.id as string} value={d.id as string}>
+                          <span className="truncate">{d.fileName as string || 'Untitled'} {d.version ? `(${d.version as string})` : ''}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Error display */}
+            {error && (
+              <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 p-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                  <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Info */}
+            <div className="rounded-lg bg-primary/5 border border-primary/15 p-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Sparkles className="h-4 w-4 text-primary shrink-0" />
+                <span>AI will analyze both documents and identify all changes with severity ratings and recommendations.</span>
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+
+        <Separator />
+        <div className="flex items-center justify-between pt-2">
+          <Button variant="outline" onClick={() => handleClose(false)} disabled={submitting}>
+            Cancel
           </Button>
-          {step < 4 ? (
-            <Button onClick={() => setStep(step + 1)} disabled={!canProceed}>{step === 3 ? 'Review' : 'Next'}</Button>
-          ) : (
-            <Button onClick={handleSubmit} disabled={submitting} className="gap-2">
-              {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Comparing with AI...</> : <><Sparkles className="h-4 w-4" /> Compare with AI</>}
-            </Button>
-          )}
+          <Button
+            onClick={page === 'upload' ? handleUploadSubmit : handleSelectSubmit}
+            disabled={page === 'upload' ? !isUploadReady : !isSelectReady}
+            className="gap-2"
+          >
+            {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> {page === 'upload' ? 'Comparing with AI...' : 'Creating...'}</> : <><Sparkles className="h-4 w-4" /> {page === 'upload' ? 'Compare with AI' : 'Create Comparison'}</>}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -424,6 +548,7 @@ function ComparisonDetail({ comparison, open, onOpenChange }: { comparison: Reco
   const cfg = statusConfig[status] || statusConfig.PENDING
   const oldDoc = comparison.oldDocument as Record<string, unknown> | null
   const newDoc = comparison.newDocument as Record<string, unknown> | null
+  const compTitle = comparison.title as string | null
 
   const highCount = changes.filter(c => c.severity === 'HIGH').length
   const medCount = changes.filter(c => c.severity === 'MEDIUM').length
@@ -445,24 +570,28 @@ function ComparisonDetail({ comparison, open, onOpenChange }: { comparison: Reco
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <GitCompare className="h-5 w-5" />
-            Comparison Details
+            {compTitle || 'Comparison Details'}
             <Badge className={cfg.color}>{cfg.label}</Badge>
           </DialogTitle>
         </DialogHeader>
 
         {/* Summary */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <div className="rounded-lg border p-3 text-center">
             <p className="text-2xl font-bold">{changes.length}</p>
-            <p className="text-xs text-muted-foreground">Total Changes</p>
+            <p className="text-xs text-muted-foreground">Total</p>
           </div>
           <div className="rounded-lg border p-3 text-center">
             <p className="text-2xl font-bold text-red-500">{highCount}</p>
-            <p className="text-xs text-muted-foreground">High Severity</p>
+            <p className="text-xs text-muted-foreground">High</p>
           </div>
           <div className="rounded-lg border p-3 text-center">
             <p className="text-2xl font-bold text-amber-500">{medCount}</p>
             <p className="text-xs text-muted-foreground">Medium</p>
+          </div>
+          <div className="rounded-lg border p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-500">{lowCount}</p>
+            <p className="text-xs text-muted-foreground">Low</p>
           </div>
         </div>
 

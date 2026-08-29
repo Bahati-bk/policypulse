@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -32,6 +32,7 @@ import { Separator } from '@/components/ui/separator'
 import {
   Bell, CheckCircle2, XCircle, Send, AlertTriangle, Shield, Users,
   ClipboardList, Search, Download, Plus, FileText, Zap, Phone, MessageSquare,
+  UserPlus, X, Check, Loader2, Contact, Smartphone,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -95,6 +96,7 @@ const statusIcons: Record<string, React.ReactNode> = {
 const severityOptions = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
 const changeTypeOptions = ['NEW_POLICY', 'AMENDMENT', 'REPEAL', 'REVISION', 'RESTRUCTURING', 'CLARIFICATION'] as const
 const statusFilterOptions = ['', 'DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SENT'] as const
+const labelOptions = ['General', 'Stakeholder', 'Official', 'Media']
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } }
 const item = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0 } }
@@ -114,6 +116,15 @@ interface Alert {
   createdAt: string
   rejectionReason: string | null
   [key: string]: unknown
+}
+
+interface PhoneContact {
+  id: string
+  name: string | null
+  phoneNumber: string
+  label: string
+  active: boolean
+  createdAt: string
 }
 
 interface FormData {
@@ -148,8 +159,18 @@ export default function AlertsView() {
   const [rejectReason, setRejectReason] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [ussdDialog, setUssdDialog] = useState<string | null>(null)
-  const [ussdPhones, setUssdPhones] = useState('')
   const [form, setForm] = useState<FormData>(emptyForm)
+
+  // USSD send state - selected contacts + manual numbers
+  const [ussdSelectedContacts, setUssdSelectedContacts] = useState<Set<string>>(new Set())
+  const [ussdManualPhone, setUssdManualPhone] = useState('')
+  const [ussdManualName, setUssdManualName] = useState('')
+
+  // Contacts management dialog
+  const [contactsDialog, setContactsDialog] = useState(false)
+  const [newContactPhone, setNewContactPhone] = useState('')
+  const [newContactName, setNewContactName] = useState('')
+  const [newContactLabel, setNewContactLabel] = useState('General')
 
   // ── Queries ──────────────────────────────────────────────────────
 
@@ -159,6 +180,13 @@ export default function AlertsView() {
     enabled: !!user,
   })
   const alerts = safeArray<Alert>(alertsData)
+
+  const { data: contactsData } = useQuery<PhoneContact[]>({
+    queryKey: ['contacts'],
+    queryFn: () => fetch('/api/contacts').then(r => r.json()),
+    enabled: !!user,
+  })
+  const contacts = safeArray<PhoneContact>(contactsData)
 
   // ── Counts for filter badges ─────────────────────────────────────
 
@@ -179,15 +207,12 @@ export default function AlertsView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error || 'Failed to create alert')
-      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to create alert') }
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
-      toast.success('Alert created successfully')
+      toast.success(`Alert created successfully${data._smsQueued ? ' — SMS queued to contacts' : ''}`)
       setCreateOpen(false)
       setForm(emptyForm)
     },
@@ -200,9 +225,9 @@ export default function AlertsView() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['alerts'] })
-      toast.success('Alert approved')
+      toast.success(`Alert approved${data._smsQueued ? ' — SMS queued to contacts' : ''}`)
       setSelectedAlert(null)
     },
     onError: () => toast.error('Failed to approve'),
@@ -249,16 +274,71 @@ export default function AlertsView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumbers, message, alertId }),
       })
-      if (!res.ok) {
-        const d = await res.json()
-        throw new Error(d.error || 'Failed to send USSD')
-      }
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to send USSD') }
       return res.json()
     },
     onSuccess: (data) => {
       toast.success(`USSD alert queued to ${data.messageCount} recipient(s) via *384*17818#`)
       setUssdDialog(null)
-      setUssdPhones('')
+      setUssdSelectedContacts(new Set())
+      setUssdManualPhone('')
+      setUssdManualName('')
+    },
+    onError: (e) => toast.error(e.message),
+  })
+
+  // Contact management mutations
+  const addContactMutation = useMutation({
+    mutationFn: async ({ phoneNumber, name, label }: { phoneNumber: string; name?: string; label?: string }) => {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, name, label }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to add contact') }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      setNewContactPhone('')
+      setNewContactName('')
+      setNewContactLabel('General')
+      toast.success('Contact saved')
+    },
+    onError: (e) => toast.error(e.message),
+  })
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/contacts?id=${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      toast.success('Contact removed')
+    },
+    onError: () => toast.error('Failed to remove contact'),
+  })
+
+  // Quick add from USSD dialog
+  const quickAddContactMutation = useMutation({
+    mutationFn: async ({ phoneNumber, name }: { phoneNumber: string; name?: string }) => {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phoneNumber, name }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed') }
+      return res.json()
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      // Auto-select the newly added contact
+      setUssdSelectedContacts(prev => new Set([...prev, data.id]))
+      setUssdManualPhone('')
+      setUssdManualName('')
+      toast.success('Contact saved & selected')
     },
     onError: (e) => toast.error(e.message),
   })
@@ -269,17 +349,53 @@ export default function AlertsView() {
 
   function handleUssdSend() {
     if (!selectedAlert) return
-    const phones = ussdPhones
-      .split(/[,\n;\s]+/)
-      .map(p => p.trim())
-      .filter(p => p.length > 0)
-    if (phones.length === 0) {
-      toast.error('Enter at least one phone number')
+
+    // Collect phone numbers from selected contacts
+    const phoneNumbers: string[] = []
+    for (const contact of contacts) {
+      if (ussdSelectedContacts.has(contact.id)) {
+        phoneNumbers.push(contact.phoneNumber)
+      }
+    }
+
+    // Add manual phone if entered
+    if (ussdManualPhone.trim()) {
+      const manualPhones = ussdManualPhone
+        .split(/[,\n;]+/)
+        .map(p => p.trim())
+        .filter(p => p.length > 0)
+      phoneNumbers.push(...manualPhones)
+    }
+
+    if (phoneNumbers.length === 0) {
+      toast.error('Select at least one contact or enter a phone number')
       return
     }
+
     const message = `[PolicyPulse] ${selectedAlert.title}
-${selectedAlert.summary || ''}`.trim()
-    ussdMutation.mutate({ alertId: selectedAlert.id, phoneNumbers: phones, message })
+${selectedAlert.summary || ''}
+Severity: ${selectedAlert.severity}`.trim()
+    ussdMutation.mutate({ alertId: selectedAlert.id, phoneNumbers, message })
+  }
+
+  function toggleContact(contactId: string) {
+    setUssdSelectedContacts(prev => {
+      const next = new Set(prev)
+      if (next.has(contactId)) {
+        next.delete(contactId)
+      } else {
+        next.add(contactId)
+      }
+      return next
+    })
+  }
+
+  function selectAllContacts() {
+    if (ussdSelectedContacts.size === contacts.length) {
+      setUssdSelectedContacts(new Set())
+    } else {
+      setUssdSelectedContacts(new Set(contacts.map(c => c.id)))
+    }
   }
 
   const filtered = alerts.filter((alert) => {
@@ -345,11 +461,28 @@ ${selectedAlert.summary || ''}`.trim()
               <Download className="mr-2 h-3.5 w-3.5" />Export CSV
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setContactsDialog(true)} className="gap-2">
+            <Contact className="h-3.5 w-3.5" />
+            Contacts
+            {contacts.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-[10px] px-1.5">{contacts.length}</Badge>
+            )}
+          </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-2 h-3.5 w-3.5" />Create Alert
           </Button>
         </div>
       </div>
+
+      {/* ── Auto-SMS info banner ── */}
+      {contacts.length > 0 && (
+        <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 flex items-center gap-3">
+          <Smartphone className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">
+            Auto-SMS active: {contacts.length} contact{contacts.length !== 1 ? 's' : ''} will receive SMS alerts when new alerts are created, approved, documents uploaded, or comparisons made.
+          </p>
+        </div>
+      )}
 
       {/* ── Filters ── */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -422,7 +555,6 @@ ${selectedAlert.summary || ''}`.trim()
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 min-w-0">
-                      {/* Severity dot */}
                       <div className="relative shrink-0 mt-1">
                         <div className={`h-2.5 w-2.5 rounded-full ${severityColors[alert.severity] || 'bg-slate-400'}`} />
                         {alert.severity === 'CRITICAL' && (
@@ -469,7 +601,7 @@ ${selectedAlert.summary || ''}`.trim()
               Create New Alert
             </DialogTitle>
             <DialogDescription>
-              Fill in the details to create a new policy change alert. The alert will be created as a draft.
+              Fill in the details to create a new policy change alert. SMS will be sent to your {contacts.length} saved contact{contacts.length !== 1 ? 's' : ''}.
             </DialogDescription>
           </DialogHeader>
 
@@ -759,7 +891,7 @@ ${selectedAlert.summary || ''}`.trim()
                 </div>
 
                 {isAdmin && (
-                  <div className="flex gap-2 pt-2 border-t">
+                  <div className="flex gap-2 pt-2 border-t flex-wrap">
                     {selectedAlert.status === 'PENDING_REVIEW' && (
                       <>
                         <Button onClick={() => approveMutation.mutate(selectedAlert.id)} disabled={approveMutation.isPending}>
@@ -777,8 +909,22 @@ ${selectedAlert.summary || ''}`.trim()
                     )}
                     <Button
                       variant="outline"
-                      onClick={() => setUssdDialog(selectedAlert.id)}
+                      onClick={() => { setUssdDialog(selectedAlert.id); setUssdSelectedContacts(new Set(contacts.map(c => c.id))) }}
                       className="gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    >
+                      <Phone className="h-4 w-4" />
+                      Send via USSD
+                    </Button>
+                  </div>
+                )}
+
+                {/* Non-admin users can also send USSD */}
+                {!isAdmin && (
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => { setUssdDialog(selectedAlert.id); setUssdSelectedContacts(new Set(contacts.map(c => c.id))) }}
+                      className="gap-2 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 w-full sm:w-auto"
                     >
                       <Phone className="h-4 w-4" />
                       Send via USSD (*384*17818#)
@@ -799,18 +945,20 @@ ${selectedAlert.summary || ''}`.trim()
       </Dialog>
 
       {/* ── USSD Send Dialog ── */}
-      <Dialog open={!!ussdDialog} onOpenChange={(open) => { if (!open) { setUssdDialog(null); setUssdPhones('') } }}>
-        <DialogContent className="max-w-md">
+      <Dialog open={!!ussdDialog} onOpenChange={(open) => { if (!open) { setUssdDialog(null); setUssdSelectedContacts(new Set()); setUssdManualPhone(''); setUssdManualName('') } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5 text-emerald-500" />
-              Send via USSD
+              Send Alert via USSD
             </DialogTitle>
             <DialogDescription>
-              Send this alert via USSD shortcode <span className="font-mono font-semibold text-foreground">*384*17818#</span> to Uganda phone numbers.
+              Send this alert via <span className="font-mono font-semibold text-foreground">*384*17818#</span> to phone numbers.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4">
+            {/* Alert preview */}
             <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
               <div className="flex items-center gap-2 mb-1">
                 <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
@@ -819,32 +967,218 @@ ${selectedAlert.summary || ''}`.trim()
               <p className="text-xs font-medium">{selectedAlert?.title}</p>
               <p className="text-xs text-muted-foreground mt-1 line-clamp-3">{selectedAlert?.summary || 'No summary'}</p>
             </div>
+
+            {/* Saved contacts */}
+            {contacts.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    <Contact className="h-3.5 w-3.5" />
+                    Saved Contacts
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={selectAllContacts}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {ussdSelectedContacts.size === contacts.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1">
+                  {contacts.map(contact => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      onClick={() => toggleContact(contact.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border transition-colors ${
+                        ussdSelectedContacts.has(contact.id)
+                          ? 'bg-emerald-100 dark:bg-emerald-900/50 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+                          : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {contact.name || contact.phoneNumber.slice(-4)}
+                      <span className="text-[10px] opacity-60">{contact.phoneNumber}</span>
+                      {ussdSelectedContacts.has(contact.id) && <Check className="h-3 w-3" />}
+                    </button>
+                  ))}
+                </div>
+                {ussdSelectedContacts.size > 0 && (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+                    {ussdSelectedContacts.size} contact{ussdSelectedContacts.size !== 1 ? 's' : ''} selected
+                  </p>
+                )}
+              </div>
+            )}
+
+            <Separator />\n
+            {/* Manual phone entry */}
             <div className="space-y-2">
-              <Label htmlFor="ussd-phones">Phone Numbers</Label>
-              <Textarea
-                id="ussd-phones"
-                placeholder={"Enter phone numbers, one per line or comma-separated\ne.g. 256700000000, 0771234567"}
-                value={ussdPhones}
-                onChange={e => setUssdPhones(e.target.value)}
-                rows={4}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Supports formats: 256..., +256..., 07..., separated by commas or newlines
+              <Label htmlFor="ussd-manual-phone" className="flex items-center gap-1.5">
+                <UserPlus className="h-3.5 w-3.5" />
+                Add Numbers Manually
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  id="ussd-manual-phone"
+                  placeholder="256700000000"
+                  value={ussdManualPhone}
+                  onChange={e => setUssdManualPhone(e.target.value)}
+                  className="font-mono text-sm"
+                />
+                <Input
+                  placeholder="Name (optional)"
+                  value={ussdManualName}
+                  onChange={e => setUssdManualName(e.target.value)}
+                  className="w-32 text-sm"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={() => {
+                    if (ussdManualPhone.trim().length >= 10) {
+                      quickAddContactMutation.mutate({
+                        phoneNumber: ussdManualPhone.trim(),
+                        name: ussdManualName.trim() || undefined,
+                      })
+                    } else {
+                      toast.error('Enter a valid phone number')
+                    }
+                  }}
+                  disabled={quickAddContactMutation.isPending || !ussdManualPhone.trim()}
+                  title="Save as contact & select"
+                >
+                  {quickAddContactMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Enter a Uganda number (256..., +256..., or 07...). Click + to save as contact.
               </p>
             </div>
+
+            {/* Recipient summary */}
+            {(ussdSelectedContacts.size > 0 || ussdManualPhone.trim()) && (
+              <div className="rounded-lg bg-muted/50 border p-2.5">
+                <p className="text-[11px] font-semibold mb-1">Recipients</p>
+                <p className="text-xs text-muted-foreground">
+                  {ussdSelectedContacts.size} saved contact{ussdSelectedContacts.size !== 1 ? 's' : ''}
+                  {ussdManualPhone.trim() ? ` + manual entry` : ''}
+                  = {ussdSelectedContacts.size + (ussdManualPhone.trim() ? 1 : 0)} total
+                </p>
+              </div>
+            )}
           </div>
+
           <Separator />
           <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" onClick={() => { setUssdDialog(null); setUssdPhones('') }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setUssdDialog(null); setUssdSelectedContacts(new Set()); setUssdManualPhone(''); setUssdManualName('') }}>Cancel</Button>
             <Button
               onClick={handleUssdSend}
-              disabled={ussdMutation.isPending || !ussdPhones.trim()}
+              disabled={ussdMutation.isPending || (ussdSelectedContacts.size === 0 && !ussdManualPhone.trim())}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <Phone className="mr-2 h-4 w-4" />
-              {ussdMutation.isPending ? 'Sending...' : 'Send USSD Alert'}
+              {ussdMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</> : <><Phone className="mr-2 h-4 w-4" />Send USSD Alert</>}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Contacts Management Dialog ── */}
+      <Dialog open={contactsDialog} onOpenChange={setContactsDialog}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Contact className="h-5 w-5 text-primary" />
+              Phone Contacts
+            </DialogTitle>
+            <DialogDescription>
+              Manage your alert recipients. New alerts, approvals, document uploads, and comparisons will auto-send SMS to these contacts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Add new contact */}
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-xs font-semibold">Add New Contact</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Input
+                  placeholder="256700000000"
+                  value={newContactPhone}
+                  onChange={e => setNewContactPhone(e.target.value)}
+                  className="font-mono text-sm sm:col-span-1"
+                />
+                <Input
+                  placeholder="Name (optional)"
+                  value={newContactName}
+                  onChange={e => setNewContactName(e.target.value)}
+                  className="text-sm"
+                />
+                <div className="flex gap-2">
+                  <Select value={newContactLabel} onValueChange={setNewContactLabel}>
+                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {labelOptions.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="icon"
+                    onClick={() => {
+                      if (!newContactPhone.trim()) { toast.error('Enter a phone number'); return }
+                      addContactMutation.mutate({
+                        phoneNumber: newContactPhone.trim(),
+                        name: newContactName.trim() || undefined,
+                        label: newContactLabel,
+                      })
+                    }}
+                    disabled={addContactMutation.isPending}
+                  >
+                    {addContactMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Uganda format: 256..., +256..., or 07...</p>
+            </div>
+
+            <Separator />
+
+            {/* Contact list */}
+            <div className="max-h-60 overflow-y-auto">
+              {contacts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Contact className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No contacts yet</p>
+                  <p className="text-xs mt-1">Add phone numbers above to receive SMS alerts</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {contacts.map(contact => (
+                    <div key={contact.id} className="flex items-center gap-3 rounded-lg border p-3 group">
+                      <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                          {(contact.name || contact.phoneNumber).charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{contact.name || 'Unnamed'}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{contact.phoneNumber}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">{contact.label}</Badge>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => deleteContactMutation.mutate(contact.id)}
+                        disabled={deleteContactMutation.isPending}
+                      >
+                        <X className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

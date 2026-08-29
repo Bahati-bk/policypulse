@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser, SessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
+import { autoSendSmsAlert } from '@/lib/sms'
 import fs from 'fs'
 import path from 'path'
 
@@ -75,7 +76,22 @@ export async function POST(req: NextRequest) {
       data: { actorUserId: user.id, action: 'CREATE', entityType: 'PolicyDocument', entityId: doc.id, metadata: JSON.stringify({ title, fileName }) },
     })
 
-    return NextResponse.json(doc, { status: 201 })
+    // Auto-send SMS to all saved contacts on document upload
+    try {
+      const smsResult = await autoSendSmsAlert({
+        userId: user.id,
+        title: `[New Document] ${title}`,
+        summary: `A new document "${fileName || title}" has been uploaded for policy review.`,
+        source: 'Document Upload',
+      })
+      if (smsResult.queued > 0) {
+        console.log(`Auto-queued ${smsResult.queued} SMS for document upload ${doc.id}`)
+      }
+    } catch (smsErr) {
+      console.error('Auto-SMS failed for document upload:', smsErr)
+    }
+
+    return NextResponse.json({ ...doc, _smsQueued: true }, { status: 201 })
   } catch (error) {
     console.error('Document upload error:', error)
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 })

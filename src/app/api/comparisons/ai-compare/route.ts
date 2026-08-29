@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { deepseekChat } from '@/lib/deepseek'
+import { autoSendSmsAlert } from '@/lib/sms'
 import fs from 'fs'
 import path from 'path'
 
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
     // Create comparison
     const comparison = await db.documentComparison.create({
       data: {
+        title: title || null,
         oldDocumentId: oldDoc.id,
         newDocumentId: newDoc.id,
         createdBy: user.id,
@@ -313,7 +315,22 @@ Respond with ONLY valid JSON, no markdown or explanation. Example:
       },
     })
 
-    return NextResponse.json({ comparison: result, changesCount: aiChanges.length })
+    // Auto-send SMS to all saved contacts on comparison
+  try {
+    const smsResult = await autoSendSmsAlert({
+      userId: user.id,
+      title: `[New Comparison] ${title || `Policy comparison of ${oldFilename}`}`,
+      summary: `A new AI comparison found ${aiChanges.length} changes between ${oldFilename} and ${newFilename}.`,
+      source: 'AI Comparison',
+    })
+    if (smsResult.queued > 0) {
+      console.log(`Auto-queued ${smsResult.queued} SMS for comparison ${comparison.id}`)
+    }
+  } catch (smsErr) {
+    console.error('Auto-SMS failed for comparison:', smsErr)
+  }
+
+    return NextResponse.json({ comparison: result, changesCount: aiChanges.length, _smsQueued: true })
   } catch (error) {
     console.error('AI Compare error:', error)
     const msg = error instanceof Error ? error.message : 'Internal server error'

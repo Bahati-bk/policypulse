@@ -31,6 +31,7 @@ model User {
   comparisons    DocumentComparison[]
   approvedAlerts Alert[]              @relation("AlertApprover")
   ussdMessages   USSDMessage[]
+  phoneContacts  PhoneContact[]
 }
 
 model UserProfile {
@@ -129,6 +130,7 @@ model PolicyDocument {
 
 model DocumentComparison {
   id             String    @id @default(cuid())
+  title          String?
   oldDocumentId  String
   newDocumentId  String
   status         String    @default("PENDING") // PENDING, COMPARING, ANALYZING, COMPLETED, FAILED
@@ -296,6 +298,23 @@ model USSDMessage {
   updatedAt    DateTime @updatedAt
 
   sentBy User? @relation(fields: [sentById], references: [id])
+}
+
+// ============ PHONE CONTACTS ============
+
+model PhoneContact {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String?
+  phoneNumber  String
+  label        String   @default("General") // General, Stakeholder, Official, Media
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, phoneNumber])
 }
 
 // ============ AUDIT ============

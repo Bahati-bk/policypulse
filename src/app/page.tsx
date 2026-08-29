@@ -100,21 +100,17 @@ export default function Home() {
 
   const checkSession = useCallback(async () => {
     const { setUser, setView, setCheckingSession } = useAppStore.getState()
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        const res = await fetch('/api/auth/me')
-        const data = await res.json()
-        if (data.id) {
-          setUser(data)
-          return
-        }
+    try {
+      const res = await fetch('/api/auth/me', { signal: AbortSignal.timeout(5000) })
+      const ct = res.headers.get('content-type') || ''
+      if (!ct.includes('application/json')) {
         setView('auth')
         setCheckingSession(false)
         return
-      } catch {
-        if (attempt < 4) await new Promise(r => setTimeout(r, 1000 * (attempt + 1)))
       }
-    }
+      const data = await res.json()
+      if (data.id) { setUser(data); return }
+    } catch { /* server down or network error */ }
     setView('auth')
     setCheckingSession(false)
   }, [])
